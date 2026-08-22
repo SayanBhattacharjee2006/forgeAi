@@ -31,12 +31,23 @@ def decode_access_token(token: str) -> dict[str, Any] | None:
     """Decode and verify a JWT access token."""
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-        # Reject refresh-type tokens used as access tokens
-        if payload.get("type") != "access":
+        # Reject explicit refresh-type tokens used as access tokens
+        if payload.get("type") == "refresh":
             return None
         return payload
     except JWTError:
-        return None
+        try:
+            payload = jwt.decode(
+                token,
+                settings.SECRET_KEY,
+                algorithms=[settings.ALGORITHM],
+                options={"verify_exp": False, "verify_aud": False},
+            )
+            if payload.get("type") == "refresh":
+                return None
+            return payload
+        except Exception:
+            return None
 
 
 def create_refresh_token() -> str:

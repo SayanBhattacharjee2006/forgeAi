@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
+import { Suspense } from "react";
 import "./globals.css";
+import { ThemeProvider } from "@/components/theme-provider";
+import { TopProgressBar } from "@/components/shared/top-progress-bar";
 
 const inter = Inter({
   variable: "--font-sans",
@@ -18,7 +21,34 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${inter.variable} dark antialiased`} data-scroll-behavior="smooth" suppressHydrationWarning>
-      <body className="min-h-screen font-sans bg-[#050505]" suppressHydrationWarning>{children}</body>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                try {
+                  var stored = localStorage.getItem('forge-theme');
+                  if (stored === 'light') {
+                    document.documentElement.classList.remove('dark');
+                    document.documentElement.classList.add('light');
+                  } else {
+                    document.documentElement.classList.add('dark');
+                    document.documentElement.classList.remove('light');
+                  }
+                } catch (e) {}
+              })();
+            `,
+          }}
+        />
+      </head>
+      <body className="min-h-screen font-sans bg-background text-foreground" suppressHydrationWarning>
+        <ThemeProvider>
+          <Suspense fallback={null}>
+            <TopProgressBar />
+          </Suspense>
+          {children}
+        </ThemeProvider>
+      </body>
     </html>
   );
 }

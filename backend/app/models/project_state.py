@@ -108,12 +108,12 @@ class ProjectTimelineEvent(BaseModel):
     id: PyObjectId = Field(default_factory=lambda: str(ObjectId()), alias="_id")
     event_id: str = Field(default_factory=lambda: str(ObjectId()))
     project_id: str
-    event_type: str  # DECISION, MEETING, COMMIT, PR, ACTION_ITEM, CONSTITUTION
-    source_id: str
-    title: str
-    description: str = ""
-    author: str = "System"
-    timestamp: datetime
+    event_type: str = "GENERAL"  # DECISION, MEETING, COMMIT, PR, ACTION_ITEM, CONSTITUTION, GITHUB
+    source_id: Optional[str] = ""
+    title: str = "Project Event"
+    description: Optional[str] = ""
+    author: Optional[str] = "System"
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -124,8 +124,8 @@ class SemanticChangeGroup(BaseModel):
     id: PyObjectId = Field(default_factory=lambda: str(ObjectId()), alias="_id")
     group_id: str = Field(default_factory=lambda: str(ObjectId()))
     project_id: str
-    title: str
-    summary: str
+    title: str = "Development Change"
+    summary: str = ""
     related_commit_shas: list[str] = Field(default_factory=list)
     related_pr_numbers: list[int] = Field(default_factory=list)
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -135,3 +135,4 @@ class SemanticChangeGroup(BaseModel):
 # API Request / Response Schemas
 class UpdateRiskRequest(BaseModel):
     status: str  # OPEN, ACKNOWLEDGED, RESOLVED
+

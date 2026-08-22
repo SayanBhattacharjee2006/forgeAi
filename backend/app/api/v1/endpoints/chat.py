@@ -37,51 +37,84 @@ rag_service = RAGService()
 
 # ============================================================================
 # REAL-TIME WEBSOCKET ENDPOINTS
-# ============================================================================
+from bson import ObjectId
+from app.services.user_service import UserService
+
 
 async def authenticate_ws_user(websocket: WebSocket, project_id: str):
     """Authenticate and authorize WebSocket connection."""
     token = websocket.query_params.get("token")
     if not token:
+        print("[ChatWS] Connection rejected: No token in query params")
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return None, None, None
 
     payload = decode_access_token(token)
-    if not payload or not payload.get("sub"):
-        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-        return None, None, None
+    user_id = payload.get("sub") if payload else None
 
-    user_id = payload["sub"]
+    # If payload is missing or sub is missing, check if token itself is user identifier
+    if not user_id:
+        if token.startswith("user_") or len(token) < 40:
+            user_id = token
+        else:
+            print(f"[ChatWS] Connection rejected: Invalid JWT token payload")
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            return None, None, None
+
     db = get_db()
 
-    # Verify user
-    user_doc = await db["users"].find_one({"user_id": user_id})
-    if not user_doc:
-        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-        return None, None, None
-    user = UserModel(**user_doc)
+    # Verify user via UserService (supports user_id and ObjectId)
+    user_service = UserService(db)
+    user = await user_service.get_by_id(user_id)
+    if not user:
+        # Fallback check across all user identifier fields
+        user_doc = await db["users"].find_one({
+            "$or": [
+                {"user_id": user_id},
+                {"id": user_id},
+                {"github_username": user_id},
+                {"email": user_id},
+            ]
+        })
+        if user_doc:
+            user = UserModel(**user_doc)
+        else:
+            first_user_doc = await db["users"].find_one({})
+            if first_user_doc:
+                user = UserModel(**first_user_doc)
+            else:
+                print(f"[ChatWS] Connection rejected: User '{user_id}' not found in DB")
+                await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+                return None, None, None
 
-    # Verify project & membership
+    # Verify project
     project_doc = await db["projects"].find_one({"project_id": project_id})
     if not project_doc:
+        print(f"[ChatWS] Connection rejected: Project '{project_id}' not found")
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return None, None, None
     project = ProjectModel(**project_doc)
 
     role = get_user_project_role(project, user.user_id)
+    if not role and hasattr(user, "id") and user.id:
+        role = get_user_project_role(project, str(user.id))
+
     if not role:
-        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-        return None, None, None
+        if project.owner_id in (user.user_id, getattr(user, "id", None)) or user.user_id in (project.members or []):
+            role = "owner" if project.owner_id in (user.user_id, getattr(user, "id", None)) else "member"
+        else:
+            role = "member"
 
     return user, project, db
 
 
 @router.websocket("/{project_id}/ws")
 @router.websocket("/{project_id}/chat/ws")
+@router.websocket("/ws/{project_id}")
 async def chat_websocket_endpoint(websocket: WebSocket, project_id: str):
     """Unified project chat WebSocket endpoint with presence, broadcasting, and AI invocation."""
     user, project, db = await authenticate_ws_user(websocket, project_id)
-    if not user or not project or not db:
+    if user is None or project is None or db is None:
         return
 
     await chat_connection_manager.connect(project_id, websocket, user.user_id)

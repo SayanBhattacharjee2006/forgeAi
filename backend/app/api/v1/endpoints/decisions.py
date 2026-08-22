@@ -77,10 +77,17 @@ async def list_decisions(
             (c["decision_id_a"], c["decision_id_b"]),
             (c["decision_id_b"], c["decision_id_a"]),
         ]:
+            other_text = decision_text_map.get(other_id)
+            if not other_text:
+                if other_id.startswith("constitution:"):
+                    other_text = "Project Constitution (Authoritative Rules)"
+                else:
+                    other_text = other_id
+
             conflicts_by_decision.setdefault(this_id, []).append(
                 ConflictInfo(
                     other_decision_id=other_id,
-                    other_decision_text=decision_text_map.get(other_id, other_id),
+                    other_decision_text=other_text,
                     relationship=c.get("relationship", "conflict"),
                     explanation=c.get("explanation", ""),
                 )

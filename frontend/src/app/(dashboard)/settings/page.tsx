@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Loader2,
@@ -15,6 +16,7 @@ import {
   Shield,
   AlertTriangle,
   ExternalLink,
+  ArrowLeft,
   Bot,
   Sparkles,
   Trash2,
@@ -281,25 +283,36 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="p-6 lg:p-8 max-w-[920px]">
+    <div className="flex-1 space-y-6 p-5 lg:p-8 max-w-[1100px] w-full mx-auto animate-fade-in bg-background text-foreground transition-colors duration-200">
       {/* Header & Project Selector */}
-      <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-lg font-semibold text-[#fafafa] tracking-tight">Project Settings</h1>
-          <p className="text-[#737373] text-[13px] mt-0.5">
-            Configure workspace settings, AI persona, team permissions, and credentials
-          </p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-border">
+        <div className="flex items-start gap-3 min-w-0">
+          <Link
+            href="/dashboard"
+            className="p-2 rounded-lg bg-card hover:bg-accent border border-border text-muted-foreground hover:text-foreground transition-colors cursor-pointer shrink-0 shadow-xs mt-0.5"
+            title="Back to Dashboard"
+            aria-label="Back to Dashboard"
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </Link>
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground truncate">Project Settings</h1>
+            <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
+              Configure workspace settings, AI persona, team permissions, and credentials
+            </p>
+          </div>
         </div>
+
         {projects.length > 0 && (
           <div className="flex items-center gap-2">
-            <span className="text-[12px] text-[#737373]">Workspace:</span>
+            <span className="text-xs text-muted-foreground">Workspace:</span>
             <select
               value={currentProject?.project_id || ""}
               onChange={(e) => {
                 const found = projects.find((p) => p.project_id === e.target.value);
                 if (found) setCurrentProject(found);
               }}
-              className="forge-input px-3 py-1.5 text-[12px] bg-[#141414] border border-[#262626] rounded-md text-[#fafafa]"
+              className="px-3 py-1.5 text-xs bg-card border border-border rounded-md text-foreground focus:outline-hidden focus:border-ring"
             >
               {projects.map((proj) => (
                 <option key={proj.project_id} value={proj.project_id}>
@@ -312,13 +325,13 @@ export default function SettingsPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 border-b border-[#1a1a1a] mb-6 overflow-x-auto">
+      <div className="flex gap-2 border-b border-border pb-px overflow-x-auto">
         <button
           onClick={() => setActiveTab("general")}
-          className={`pb-3 px-3 text-[13px] font-medium transition-colors border-b-2 flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
+          className={`pb-2.5 px-3 text-xs sm:text-sm font-medium transition-colors border-b-2 flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
             activeTab === "general"
-              ? "border-[#10b981] text-[#fafafa]"
-              : "border-transparent text-[#525252] hover:text-[#a3a3a3]"
+              ? "border-emerald-500 text-foreground font-semibold"
+              : "border-transparent text-muted-foreground hover:text-foreground"
           }`}
         >
           <SettingsIcon className="w-3.5 h-3.5" strokeWidth={1.5} />
@@ -326,21 +339,21 @@ export default function SettingsPage() {
         </button>
         <button
           onClick={() => setActiveTab("ai")}
-          className={`pb-3 px-3 text-[13px] font-medium transition-colors border-b-2 flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
+          className={`pb-2.5 px-3 text-xs sm:text-sm font-medium transition-colors border-b-2 flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
             activeTab === "ai"
-              ? "border-[#10b981] text-[#fafafa]"
-              : "border-transparent text-[#525252] hover:text-[#a3a3a3]"
+              ? "border-emerald-500 text-foreground font-semibold"
+              : "border-transparent text-muted-foreground hover:text-foreground"
           }`}
         >
-          <Bot className="w-3.5 h-3.5 text-[#10b981]" strokeWidth={1.5} />
+          <Bot className="w-3.5 h-3.5 text-emerald-500" strokeWidth={1.5} />
           AI Persona & Identity
         </button>
         <button
           onClick={() => setActiveTab("team")}
-          className={`pb-3 px-3 text-[13px] font-medium transition-colors border-b-2 flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
+          className={`pb-2.5 px-3 text-xs sm:text-sm font-medium transition-colors border-b-2 flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
             activeTab === "team"
-              ? "border-[#10b981] text-[#fafafa]"
-              : "border-transparent text-[#525252] hover:text-[#a3a3a3]"
+              ? "border-emerald-500 text-foreground font-semibold"
+              : "border-transparent text-muted-foreground hover:text-foreground"
           }`}
         >
           <Users className="w-3.5 h-3.5" strokeWidth={1.5} />
@@ -351,10 +364,10 @@ export default function SettingsPage() {
         </button>
         <button
           onClick={() => setActiveTab("account")}
-          className={`pb-3 px-3 text-[13px] font-medium transition-colors border-b-2 flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
+          className={`pb-2.5 px-3 text-xs sm:text-sm font-medium transition-colors border-b-2 flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
             activeTab === "account"
-              ? "border-[#10b981] text-[#fafafa]"
-              : "border-transparent text-[#525252] hover:text-[#a3a3a3]"
+              ? "border-emerald-500 text-foreground font-semibold"
+              : "border-transparent text-muted-foreground hover:text-foreground"
           }`}
         >
           <User className="w-3.5 h-3.5" strokeWidth={1.5} />
@@ -364,44 +377,44 @@ export default function SettingsPage() {
 
       {/* Tab 1: General Settings */}
       {activeTab === "general" && (
-        <form onSubmit={handleSaveGeneral} className="space-y-6">
+        <form onSubmit={handleSaveGeneral} className="space-y-5 max-w-3xl">
           {!isOwner && (
-            <div className="p-3 rounded-lg bg-[#141414] border border-[#262626] text-[#737373] text-[12px] flex items-center gap-2">
+            <div className="p-3 rounded-lg bg-card border border-border text-muted-foreground text-xs flex items-center gap-2">
               <Shield className="w-4 h-4 text-amber-400 shrink-0" />
               <span>You are viewing settings as a Member. Only Owners can update project metadata and connected sources.</span>
             </div>
           )}
 
-          <div className="surface p-5 space-y-4">
-            <h2 className="text-[13px] font-medium text-[#a3a3a3] border-b border-[#1a1a1a] pb-3">
+          <div className="bg-card border border-border rounded-xl p-5 space-y-4 shadow-xs">
+            <h2 className="text-xs sm:text-sm font-bold text-foreground border-b border-border pb-3">
               Project Information
             </h2>
 
             <div className="space-y-1.5">
-              <label className="block text-[12px] text-[#737373] font-medium">Project Name *</label>
+              <label className="block text-xs text-muted-foreground font-medium">Project Name *</label>
               <input
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 disabled={!isOwner}
-                className="forge-input w-full px-3 py-2 text-[13px] disabled:opacity-50"
+                className="w-full px-3 py-2 text-xs sm:text-sm bg-background border border-border rounded-md text-foreground focus:outline-hidden focus:border-ring disabled:opacity-50"
                 required
               />
             </div>
 
             <div className="space-y-1.5">
-              <label className="block text-[12px] text-[#737373] font-medium">Description</label>
+              <label className="block text-xs text-muted-foreground font-medium">Description</label>
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 disabled={!isOwner}
                 placeholder="What is your team building in this project?"
-                className="forge-input w-full px-3 py-2 text-[13px] min-h-[80px] disabled:opacity-50"
+                className="w-full px-3 py-2 text-xs sm:text-sm bg-background border border-border rounded-md text-foreground focus:outline-hidden focus:border-ring min-h-[80px] disabled:opacity-50"
               />
             </div>
 
             <div className="space-y-1.5">
-              <label className="block text-[12px] text-[#737373] font-medium">Maximum Members Allowed</label>
+              <label className="block text-xs text-muted-foreground font-medium">Maximum Members Allowed</label>
               <input
                 type="number"
                 min={1}
@@ -409,35 +422,35 @@ export default function SettingsPage() {
                 value={maxMembers}
                 onChange={(e) => setMaxMembers(Math.max(1, Number(e.target.value)))}
                 disabled={!isOwner}
-                className="forge-input w-full px-3 py-2 text-[13px] disabled:opacity-50"
+                className="w-full px-3 py-2 text-xs sm:text-sm bg-background border border-border rounded-md text-foreground focus:outline-hidden focus:border-ring disabled:opacity-50"
               />
-              <p className="text-[11px] text-[#525252]">Allowed between 1 and 100 members.</p>
+              <p className="text-[11px] text-muted-foreground">Allowed between 1 and 100 members.</p>
             </div>
           </div>
 
-          <div className="surface p-5 space-y-4">
-            <h2 className="text-[13px] font-medium text-[#a3a3a3] border-b border-[#1a1a1a] pb-3">
+          <div className="bg-card border border-border rounded-xl p-5 space-y-4 shadow-xs">
+            <h2 className="text-xs sm:text-sm font-bold text-foreground border-b border-border pb-3">
               Connected Sources
             </h2>
 
             <div className="space-y-1.5">
-              <label className="block text-[12px] text-[#737373] font-medium">GitHub Repository URL</label>
+              <label className="block text-xs text-muted-foreground font-medium">GitHub Repository URL</label>
               <input
                 type="url"
                 value={githubRepoUrl}
                 onChange={(e) => setGithubRepoUrl(e.target.value)}
                 disabled={!isOwner}
                 placeholder="https://github.com/owner/repo"
-                className="forge-input w-full px-3 py-2 text-[13px] disabled:opacity-50"
+                className="w-full px-3 py-2 text-xs sm:text-sm bg-background border border-border rounded-md text-foreground focus:outline-hidden focus:border-ring font-mono disabled:opacity-50"
               />
-              <p className="text-[11px] text-[#525252]">
-                Repository code and commit history are indexed into vector memory.
+              <p className="text-[11px] text-muted-foreground">
+                Repository code, pull requests, and commit history are indexed into vector memory.
               </p>
             </div>
 
-            <div className="space-y-2 pt-3 border-t border-white/5">
+            <div className="space-y-2 pt-2 border-t border-border">
               <div className="flex items-center justify-between">
-                <label className="block text-[12px] text-[#737373] font-medium flex items-center gap-1.5">
+                <label className="block text-xs text-muted-foreground font-medium flex items-center gap-1.5">
                   <DiscordIcon size={14} className="text-[#5865F2]" />
                   Discord Server ID (Guild ID)
                 </label>
@@ -445,7 +458,7 @@ export default function SettingsPage() {
                   href="https://discord.com/oauth2/authorize?permissions=68608&scope=bot%20applications.commands"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-[11px] text-[#5865F2] hover:text-[#7983f5] transition-colors"
+                  className="inline-flex items-center gap-1 text-xs text-[#5865F2] hover:underline"
                 >
                   Invite Bot to Server
                   <ExternalLink className="w-3 h-3" />
@@ -457,8 +470,11 @@ export default function SettingsPage() {
                 onChange={(e) => setDiscordGuildId(e.target.value)}
                 disabled={!isOwner}
                 placeholder="e.g. 123456789012345678"
-                className="forge-input w-full px-3 py-2 text-[13px] font-mono disabled:opacity-50"
+                className="w-full px-3 py-2 text-xs sm:text-sm bg-background border border-border rounded-md text-foreground focus:outline-hidden focus:border-ring font-mono disabled:opacity-50"
               />
+              <p className="text-[11px] text-muted-foreground">
+                Enable Developer Mode in Discord, right-click your server name, and select &quot;Copy Server ID&quot;.
+              </p>
             </div>
           </div>
 
@@ -467,7 +483,7 @@ export default function SettingsPage() {
               <button
                 type="submit"
                 disabled={isSavingGeneral}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-md bg-[#10b981] hover:bg-[#059669] text-white text-[13px] font-medium transition-colors disabled:opacity-40 cursor-pointer"
+                className="flex items-center gap-1.5 px-4 py-2 rounded-md bg-emerald-500 hover:bg-emerald-600 text-white text-xs sm:text-sm font-semibold transition-colors disabled:opacity-40 cursor-pointer shadow-xs"
               >
                 {isSavingGeneral ? (
                   <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={2} />
@@ -479,8 +495,8 @@ export default function SettingsPage() {
 
               {generalMessage && (
                 <span
-                  className={`text-[12px] font-medium ${
-                    generalMessage.type === "error" ? "text-red-400" : "text-emerald-400"
+                  className={`text-xs font-medium ${
+                    generalMessage.type === "error" ? "text-rose-500" : "text-emerald-500"
                   }`}
                 >
                   {generalMessage.text}
@@ -493,94 +509,94 @@ export default function SettingsPage() {
 
       {/* Tab 2: AI Persona & Identity */}
       {activeTab === "ai" && (
-        <div className="space-y-6">
+        <div className="space-y-6 max-w-3xl">
           {!isOwner && (
-            <div className="p-3 rounded-lg bg-[#141414] border border-[#262626] text-[#737373] text-[12px] flex items-center gap-2">
+            <div className="p-3 rounded-lg bg-card border border-border text-muted-foreground text-xs flex items-center gap-2">
               <Shield className="w-4 h-4 text-amber-400 shrink-0" />
               <span>You are viewing AI configuration as a Member. Only Owners can customize the Project AI Persona.</span>
             </div>
           )}
 
           {/* AI Interactive Persona Preview */}
-          <div className="surface p-5 border border-emerald-500/30 bg-gradient-to-br from-emerald-950/20 via-[#0d0d0d] to-[#0a0a0a] rounded-xl">
-            <div className="flex items-center justify-between mb-3 border-b border-[#222] pb-3">
+          <div className="p-5 border border-emerald-500/30 bg-card rounded-xl shadow-xs">
+            <div className="flex items-center justify-between mb-3 border-b border-border pb-3">
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-[#10b981] flex items-center justify-center">
+                <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-500 flex items-center justify-center">
                   <Bot className="w-4 h-4" />
                 </div>
                 <div>
-                  <h2 className="text-[14px] font-semibold text-[#fafafa]">AI Persona Identity Preview</h2>
-                  <p className="text-[11px] text-[#737373]">How your AI identifies across Q&A, meetings, and group chat</p>
+                  <h2 className="text-sm font-semibold text-foreground">AI Persona Identity Preview</h2>
+                  <p className="text-xs text-muted-foreground">How your AI identifies across Q&A, meetings, and group chat</p>
                 </div>
               </div>
-              <span className="text-[10px] text-emerald-400 font-mono bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+              <span className="text-[10px] text-emerald-500 font-mono bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
                 Live Preview
               </span>
             </div>
 
-            <div className="p-4 rounded-lg bg-[#080808] border border-[#1a1a1a] space-y-2">
+            <div className="p-4 rounded-lg bg-background border border-border space-y-2">
               <div className="flex items-center gap-2">
-                <span className="text-[13px] font-semibold text-[#fafafa]">{aiName || "Forge"}</span>
-                <span className="text-[11px] text-[#10b981] bg-[rgba(16,185,129,0.1)] px-1.5 py-0.25 rounded font-mono">
+                <span className="text-xs sm:text-sm font-semibold text-foreground">{aiName || "Forge"}</span>
+                <span className="text-[11px] text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded font-mono">
                   @{aiInvocationPhrase || "Forge"}
                 </span>
-                <span className="text-[11px] text-[#737373]">· {aiRole || "Project Assistant"}</span>
+                <span className="text-xs text-muted-foreground">· {aiRole || "Project Assistant"}</span>
               </div>
-              <p className="text-[12px] text-[#a3a3a3] leading-relaxed">
-                &ldquo;Hello team! I am <strong className="text-[#fafafa]">{aiName || "Forge"}</strong>, your{" "}
-                <span className="text-emerald-400 font-medium">{aiRole || "Project Assistant"}</span>. You can invoke me anytime
-                by typing <code className="text-[#10b981] font-mono">@{aiInvocationPhrase || "Forge"}</code> in chat or speaking during
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                &ldquo;Hello team! I am <strong className="text-foreground">{aiName || "Forge"}</strong>, your{" "}
+                <span className="text-emerald-500 font-medium">{aiRole || "Project Assistant"}</span>. You can invoke me anytime
+                by typing <code className="text-emerald-500 font-mono">@{aiInvocationPhrase || "Forge"}</code> in chat or speaking during
                 voice meetings.&rdquo;
               </p>
             </div>
           </div>
 
           {/* AI Settings Form */}
-          <form onSubmit={handleSaveAI} className="surface p-5 space-y-4">
-            <h2 className="text-[13px] font-medium text-[#a3a3a3] border-b border-[#1a1a1a] pb-3">
+          <form onSubmit={handleSaveAI} className="bg-card border border-border rounded-xl p-5 space-y-4 shadow-xs">
+            <h2 className="text-xs sm:text-sm font-bold text-foreground border-b border-border pb-3">
               Configure Persona
             </h2>
 
             <div className="space-y-1.5">
-              <label className="block text-[12px] text-[#737373] font-medium">AI Display Name *</label>
+              <label className="block text-xs text-muted-foreground font-medium">AI Display Name *</label>
               <input
                 type="text"
                 value={aiName}
                 onChange={(e) => setAiName(e.target.value)}
                 disabled={!isOwner}
                 placeholder="e.g. Atlas, Forge, Hermes, Jarvis"
-                className="forge-input w-full px-3 py-2 text-[13px] disabled:opacity-50"
+                className="w-full px-3 py-2 text-xs sm:text-sm bg-background border border-border rounded-md text-foreground focus:outline-hidden focus:border-ring disabled:opacity-50"
                 required
               />
-              <p className="text-[11px] text-[#525252]">The conversational name your AI assistant will respond as.</p>
+              <p className="text-[11px] text-muted-foreground">The conversational name your AI assistant will respond as.</p>
             </div>
 
             <div className="space-y-1.5">
-              <label className="block text-[12px] text-[#737373] font-medium">AI Role / Persona *</label>
+              <label className="block text-xs text-muted-foreground font-medium">AI Role / Persona *</label>
               <input
                 type="text"
                 value={aiRole}
                 onChange={(e) => setAiRole(e.target.value)}
                 disabled={!isOwner}
                 placeholder="e.g. Senior Software Architect, Security Lead, Project Assistant"
-                className="forge-input w-full px-3 py-2 text-[13px] disabled:opacity-50"
+                className="w-full px-3 py-2 text-xs sm:text-sm bg-background border border-border rounded-md text-foreground focus:outline-hidden focus:border-ring disabled:opacity-50"
                 required
               />
-              <p className="text-[11px] text-[#525252]">Defines the tone, depth, and domain expertise of the AI.</p>
+              <p className="text-[11px] text-muted-foreground">Defines the tone, depth, and domain expertise of the AI.</p>
             </div>
 
             <div className="space-y-1.5">
-              <label className="block text-[12px] text-[#737373] font-medium">Invocation Phrase *</label>
+              <label className="block text-xs text-muted-foreground font-medium">Invocation Phrase *</label>
               <input
                 type="text"
                 value={aiInvocationPhrase}
                 onChange={(e) => setAiInvocationPhrase(e.target.value)}
                 disabled={!isOwner}
                 placeholder="e.g. Atlas, Forge, Assistant"
-                className="forge-input w-full px-3 py-2 text-[13px] font-mono disabled:opacity-50"
+                className="w-full px-3 py-2 text-xs sm:text-sm bg-background border border-border rounded-md text-foreground focus:outline-hidden focus:border-ring font-mono disabled:opacity-50"
                 required
               />
-              <p className="text-[11px] text-[#525252]">The keyword or handle teammates will use to invoke this assistant.</p>
+              <p className="text-[11px] text-muted-foreground">The keyword or handle teammates will use to invoke this assistant.</p>
             </div>
 
             {isOwner && (
@@ -588,7 +604,7 @@ export default function SettingsPage() {
                 <button
                   type="submit"
                   disabled={isSavingAI}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-md bg-[#10b981] hover:bg-[#059669] text-white text-[13px] font-medium transition-colors disabled:opacity-40 cursor-pointer"
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-md bg-emerald-500 hover:bg-emerald-600 text-white text-xs sm:text-sm font-semibold transition-colors disabled:opacity-40 cursor-pointer shadow-xs"
                 >
                   {isSavingAI ? (
                     <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={2} />
@@ -600,8 +616,8 @@ export default function SettingsPage() {
 
                 {aiMessage && (
                   <span
-                    className={`text-[12px] font-medium ${
-                      aiMessage.type === "error" ? "text-red-400" : "text-emerald-400"
+                    className={`text-xs font-medium ${
+                      aiMessage.type === "error" ? "text-rose-500" : "text-emerald-500"
                     }`}
                   >
                     {aiMessage.text}
@@ -615,55 +631,55 @@ export default function SettingsPage() {
 
       {/* Tab 3: Team Management */}
       {activeTab === "team" && (
-        <div className="space-y-6">
+        <div className="space-y-5 max-w-3xl">
           {/* Join Code Card */}
-          <div className="surface p-5">
-            <h2 className="text-[13px] font-medium text-[#a3a3a3] mb-1.5">Project Join Code</h2>
-            <p className="text-[12px] text-[#737373] mb-4">
+          <div className="bg-card border border-border rounded-xl p-5 shadow-xs">
+            <h2 className="text-xs sm:text-sm font-bold text-foreground mb-1">Project Join Code</h2>
+            <p className="text-xs text-muted-foreground mb-3">
               Share this 6-character code with your team members to request access.
             </p>
-            <div className="flex items-center gap-3 bg-[#0d0d0d] p-3 rounded-lg border border-[#1a1a1a] w-fit">
-              <span className="text-2xl font-mono tracking-widest text-[#10b981] font-bold">
+            <div className="flex items-center gap-3 bg-background p-3 rounded-lg border border-border w-fit">
+              <span className="text-2xl font-mono tracking-widest text-emerald-600 dark:text-emerald-500 font-bold">
                 {currentProject?.join_code || "------"}
               </span>
               <button
                 onClick={copyJoinCode}
-                className="p-1.5 rounded bg-[#171717] hover:bg-[#222222] text-[#fafafa] transition-colors cursor-pointer"
+                className="p-1.5 rounded bg-secondary text-secondary-foreground hover:bg-accent transition-colors cursor-pointer"
                 title="Copy Join Code"
               >
-                {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4 text-[#737373]" />}
+                {copied ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4 text-muted-foreground" />}
               </button>
             </div>
           </div>
 
           {/* Pending Join Requests */}
           {isOwner && pendingRequests.length > 0 && (
-            <div className="surface p-5 border border-amber-500/30 bg-amber-500/5 rounded-xl">
-              <h2 className="text-[13px] font-medium text-[#fafafa] mb-3 flex items-center gap-2">
-                <UserPlus className="w-4 h-4 text-amber-400" />
+            <div className="bg-card border border-amber-500/30 rounded-xl p-5 shadow-xs">
+              <h2 className="text-xs sm:text-sm font-bold text-foreground mb-3 flex items-center gap-2">
+                <UserPlus className="w-4 h-4 text-amber-500" />
                 Pending Join Requests ({pendingRequests.length})
               </h2>
               <div className="space-y-2">
                 {pendingRequests.map((req) => (
                   <div
                     key={req.request_id || req.user_id}
-                    className="flex items-center justify-between p-3 rounded-lg bg-[#0e0e0e] border border-[#222]"
+                    className="flex items-center justify-between p-3 rounded-lg bg-background border border-border"
                   >
                     <div>
-                      <p className="text-[#fafafa] font-medium text-[13px]">{req.user_name}</p>
-                      <p className="text-[#737373] text-[11px]">@{req.github_username}</p>
+                      <p className="text-foreground font-medium text-xs sm:text-sm">{req.user_name}</p>
+                      <p className="text-muted-foreground text-[11px] font-mono">@{req.github_username}</p>
                     </div>
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => handleRequestAction(req.user_id || req.request_id, "reject")}
-                        className="px-2.5 py-1.5 rounded-md border border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/20 text-[12px] font-medium transition-colors cursor-pointer flex items-center gap-1"
+                        className="px-2.5 py-1.5 rounded-md border border-rose-500/30 bg-rose-500/10 text-rose-500 hover:bg-rose-500/20 text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1"
                       >
                         <X className="w-3.5 h-3.5" />
                         Reject
                       </button>
                       <button
                         onClick={() => handleRequestAction(req.user_id || req.request_id, "approve")}
-                        className="px-3 py-1.5 rounded-md bg-[#10b981] hover:bg-[#059669] text-white text-[12px] font-medium transition-colors cursor-pointer flex items-center gap-1"
+                        className="px-3 py-1.5 rounded-md bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1"
                       >
                         <Check className="w-3.5 h-3.5" />
                         Approve
@@ -677,8 +693,8 @@ export default function SettingsPage() {
 
           {/* Direct Invite (Owner Only) */}
           {isOwner && (
-            <div className="surface p-5">
-              <h2 className="text-[13px] font-medium text-[#a3a3a3] mb-3">Direct Invite by GitHub Username</h2>
+            <div className="bg-card border border-border rounded-xl p-5 shadow-xs">
+              <h2 className="text-xs sm:text-sm font-bold text-foreground mb-3">Direct Invite by GitHub Username</h2>
               <form onSubmit={handleInvite} className="flex flex-col gap-2.5">
                 <div className="flex gap-2">
                   <input
@@ -686,12 +702,12 @@ export default function SettingsPage() {
                     value={inviteUsername}
                     onChange={(e) => setInviteUsername(e.target.value)}
                     placeholder="e.g. torvalds"
-                    className="forge-input flex-1 px-3 py-2 text-[13px]"
+                    className="flex-1 px-3 py-2 text-xs sm:text-sm bg-background border border-border rounded-md text-foreground focus:outline-hidden focus:border-ring"
                   />
                   <button
                     type="submit"
                     disabled={isInviting || !inviteUsername.trim()}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-md bg-[#10b981] hover:bg-[#059669] text-white text-[13px] font-medium transition-colors disabled:opacity-40 cursor-pointer"
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-md bg-emerald-500 hover:bg-emerald-600 text-white text-xs sm:text-sm font-semibold transition-colors disabled:opacity-40 cursor-pointer shadow-xs"
                   >
                     {isInviting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <UserPlus className="w-3.5 h-3.5" />}
                     Invite
@@ -699,8 +715,8 @@ export default function SettingsPage() {
                 </div>
                 {inviteMessage && (
                   <span
-                    className={`text-[12px] ${
-                      inviteMessage.type === "error" ? "text-red-400" : "text-emerald-400"
+                    className={`text-xs ${
+                      inviteMessage.type === "error" ? "text-rose-500" : "text-emerald-500"
                     }`}
                   >
                     {inviteMessage.text}
@@ -711,9 +727,9 @@ export default function SettingsPage() {
           )}
 
           {/* Members List with Role Management */}
-          <div className="surface p-5 space-y-3">
-            <div className="flex items-center justify-between border-b border-[#1a1a1a] pb-3">
-              <h2 className="text-[13px] font-medium text-[#a3a3a3]">
+          <div className="bg-card border border-border rounded-xl p-5 space-y-3 shadow-xs">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <h2 className="text-xs sm:text-sm font-bold text-foreground">
                 Project Members ({currentProject?.members?.length || 0} / {currentProject?.max_members || 10})
               </h2>
             </div>
@@ -722,25 +738,25 @@ export default function SettingsPage() {
               {currentProject?.member_details?.map((member) => (
                 <div
                   key={member.user_id}
-                  className="p-3 rounded-lg bg-[#0a0a0a] border border-[#1a1a1a] flex items-center justify-between gap-3"
+                  className="p-3 rounded-lg bg-background border border-border flex items-center justify-between gap-3"
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     {member.avatar_url ? (
                       <img
                         src={member.avatar_url}
                         alt={member.github_username || ""}
-                        className="w-8 h-8 rounded-full shrink-0"
+                        className="w-8 h-8 rounded-full shrink-0 border border-border"
                       />
                     ) : (
-                      <div className="w-8 h-8 rounded-full bg-[#171717] border border-[#262626] flex items-center justify-center text-[10px] text-white font-bold shrink-0">
+                      <div className="w-8 h-8 rounded-full bg-accent border border-border flex items-center justify-center text-[10px] text-foreground font-bold shrink-0">
                         {(member.github_username || "??").substring(0, 2).toUpperCase()}
                       </div>
                     )}
                     <div className="min-w-0">
-                      <p className="text-[13px] font-medium text-[#fafafa] truncate">
+                      <p className="text-xs sm:text-sm font-medium text-foreground truncate">
                         {member.name || member.github_username}
                       </p>
-                      <p className="text-[11px] text-[#737373] truncate">@{member.github_username}</p>
+                      <p className="text-[11px] text-muted-foreground truncate">@{member.github_username}</p>
                     </div>
                   </div>
 
@@ -750,7 +766,7 @@ export default function SettingsPage() {
                         value={member.role}
                         disabled={changingRoleId === member.user_id}
                         onChange={(e) => handleRoleChange(member, e.target.value as "owner" | "member")}
-                        className="text-[11px] bg-[#141414] border border-[#262626] rounded px-2 py-1 text-[#a3a3a3] hover:text-[#fafafa] cursor-pointer"
+                        className="text-[11px] bg-card border border-border rounded px-2 py-1 text-muted-foreground hover:text-foreground cursor-pointer"
                       >
                         <option value="member">Member</option>
                         <option value="owner">Owner</option>
@@ -759,8 +775,8 @@ export default function SettingsPage() {
                       <span
                         className={`text-[10px] font-semibold px-2 py-0.5 rounded font-mono ${
                           member.role === "owner"
-                            ? "text-[#10b981] bg-[rgba(16,185,129,0.1)] border border-emerald-500/20"
-                            : "text-[#737373] bg-[#141414] border border-[#222]"
+                            ? "text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20"
+                            : "text-muted-foreground bg-muted border border-border"
                         }`}
                       >
                         {member.role === "owner" ? "Owner" : "Member"}
@@ -770,7 +786,7 @@ export default function SettingsPage() {
                     {isOwner && member.user_id !== currentProject?.owner_id && (
                       <button
                         onClick={() => handleRemoveMember(member.user_id, member.github_username)}
-                        className="p-1 text-[#525252] hover:text-red-400 rounded transition-colors cursor-pointer"
+                        className="p-1 text-muted-foreground hover:text-rose-500 rounded transition-colors cursor-pointer"
                         title="Remove member"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -786,11 +802,11 @@ export default function SettingsPage() {
 
       {/* Tab 4: Account & Danger Zone */}
       {activeTab === "account" && (
-        <div className="space-y-6">
+        <div className="space-y-5 max-w-3xl">
           {/* Profile */}
-          <div className="surface overflow-hidden">
-            <div className="px-5 py-3 border-b border-[#1a1a1a]">
-              <h2 className="text-[13px] font-medium text-[#a3a3a3] flex items-center gap-2">
+          <div className="bg-card border border-border rounded-xl overflow-hidden shadow-xs">
+            <div className="px-5 py-3 border-b border-border">
+              <h2 className="text-xs sm:text-sm font-bold text-foreground flex items-center gap-2">
                 <User className="w-3.5 h-3.5" strokeWidth={1.5} />
                 User Profile
               </h2>
@@ -801,49 +817,49 @@ export default function SettingsPage() {
                   <img
                     src={user.avatar_url}
                     alt={user.name || ""}
-                    className="w-12 h-12 rounded-md border border-[#262626]"
+                    className="w-12 h-12 rounded-lg border border-border object-cover"
                   />
                 ) : (
-                  <div className="w-12 h-12 rounded-md bg-[#171717] border border-[#262626] flex items-center justify-center text-sm font-bold text-white">
+                  <div className="w-12 h-12 rounded-lg bg-accent border border-border flex items-center justify-center text-sm font-bold text-foreground">
                     {(user?.name || "??").substring(0, 2).toUpperCase()}
                   </div>
                 )}
                 <div>
-                  <p className="text-[14px] font-medium text-[#fafafa]">{user?.name || "—"}</p>
-                  <p className="text-[12px] text-[#737373]">@{user?.github_username || "—"}</p>
-                  <p className="text-[11px] text-[#525252] mt-0.5">{user?.email || "No email"}</p>
+                  <p className="text-sm font-semibold text-foreground">{user?.name || "—"}</p>
+                  <p className="text-xs text-muted-foreground">@{user?.github_username || "—"}</p>
+                  <p className="text-[11px] text-muted-foreground/75 mt-0.5">{user?.email || "No email"}</p>
                 </div>
               </div>
             </div>
           </div>
 
           {/* API Key section */}
-          <div className="surface overflow-hidden">
-            <div className="px-5 py-3 border-b border-[#1a1a1a]">
-              <h2 className="text-[13px] font-medium text-[#a3a3a3] flex items-center gap-2">
+          <div className="bg-card border border-border rounded-xl overflow-hidden shadow-xs">
+            <div className="px-5 py-3 border-b border-border">
+              <h2 className="text-xs sm:text-sm font-bold text-foreground flex items-center gap-2">
                 <Shield className="w-3.5 h-3.5" strokeWidth={1.5} />
                 API Access Token
               </h2>
             </div>
             <div className="p-5">
-              <p className="text-[12px] text-[#737373] mb-3">
+              <p className="text-xs text-muted-foreground mb-3">
                 Use this API key to interact with Forge REST endpoints programmatically.
               </p>
               <div className="flex items-center gap-2">
-                <div className="flex-1 forge-input px-3 py-2 text-[12px] font-mono flex items-center">
+                <div className="flex-1 px-3 py-2 text-xs font-mono bg-background border border-border rounded-md text-foreground flex items-center">
                   {showApiKey ? mockApiKey : "forge_sk_••••••••••••••••••••"}
                 </div>
                 <button
                   onClick={() => setShowApiKey(!showApiKey)}
-                  className="px-3 py-2 rounded-md bg-[#141414] border border-[#262626] text-[#737373] hover:text-[#fafafa] text-[12px] transition-colors cursor-pointer"
+                  className="px-3 py-2 rounded-md bg-secondary border border-border text-secondary-foreground hover:text-foreground text-xs font-medium transition-colors cursor-pointer"
                 >
                   {showApiKey ? "Hide" : "Reveal"}
                 </button>
                 <button
                   onClick={copyApiKey}
-                  className="px-3 py-2 rounded-md bg-[#141414] border border-[#262626] text-[#737373] hover:text-[#10b981] text-[12px] transition-colors cursor-pointer flex items-center gap-1"
+                  className="px-3 py-2 rounded-md bg-secondary border border-border text-secondary-foreground hover:text-emerald-500 text-xs font-medium transition-colors cursor-pointer flex items-center gap-1"
                 >
-                  {apiKeyCopied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                  {apiKeyCopied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
                   Copy
                 </button>
               </div>
@@ -852,25 +868,25 @@ export default function SettingsPage() {
 
           {/* Danger Zone: Delete Project (Owner Only) */}
           {isOwner && currentProject && (
-            <div className="surface overflow-hidden border-red-500/30 bg-red-950/5">
-              <div className="px-5 py-3 border-b border-red-500/20 bg-red-500/5">
-                <h2 className="text-[13px] font-semibold text-red-400 flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4 text-red-400" strokeWidth={1.5} />
+            <div className="bg-card border border-rose-500/30 rounded-xl overflow-hidden shadow-xs">
+              <div className="px-5 py-3 border-b border-rose-500/20 bg-rose-500/5">
+                <h2 className="text-xs sm:text-sm font-bold text-rose-500 flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-rose-500" strokeWidth={1.5} />
                   Danger Zone — Delete Project
                 </h2>
               </div>
               <div className="p-5 space-y-4">
                 <div>
-                  <p className="text-[13px] text-[#fafafa] font-medium">Delete this project</p>
-                  <p className="text-[12px] text-[#737373] mt-0.5">
+                  <p className="text-xs sm:text-sm text-foreground font-semibold">Delete this project</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
                     Once deleted, all vector memories, chat history, decisions, and settings associated with{" "}
-                    <strong className="text-[#fafafa]">{currentProject.name}</strong> will be permanently destroyed.
+                    <strong className="text-foreground">{currentProject.name}</strong> will be permanently destroyed.
                   </p>
                 </div>
 
                 <div className="space-y-2">
-                  <label className="block text-[12px] text-[#737373]">
-                    Please type <strong className="text-red-400 font-mono">{currentProject.name}</strong> to confirm:
+                  <label className="block text-xs text-muted-foreground">
+                    Please type <strong className="text-rose-500 font-mono">{currentProject.name}</strong> to confirm:
                   </label>
                   <div className="flex gap-2">
                     <input
@@ -878,12 +894,12 @@ export default function SettingsPage() {
                       value={deleteConfirmName}
                       onChange={(e) => setDeleteConfirmName(e.target.value)}
                       placeholder={currentProject.name}
-                      className="forge-input flex-1 px-3 py-2 text-[13px] border-red-500/30"
+                      className="flex-1 px-3 py-2 text-xs sm:text-sm bg-background border border-rose-500/30 rounded-md text-foreground focus:outline-hidden"
                     />
                     <button
                       onClick={handleDeleteProject}
                       disabled={deleteConfirmName !== currentProject.name || isDeletingProject}
-                      className="px-4 py-2 rounded-md bg-red-500 hover:bg-red-600 text-white text-[13px] font-medium transition-colors disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1.5"
+                      className="px-4 py-2 rounded-md bg-rose-500 hover:bg-rose-600 text-white text-xs sm:text-sm font-semibold transition-colors disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1.5 shadow-xs"
                     >
                       {isDeletingProject ? (
                         <Loader2 className="w-3.5 h-3.5 animate-spin" />

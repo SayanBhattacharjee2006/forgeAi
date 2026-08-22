@@ -74,8 +74,14 @@ class MeetingService:
         self, meeting_id: str, db: AsyncIOMotorDatabase
     ) -> Optional[MeetingModel]:
         """Get meeting by ID."""
-        doc = await db[self.COLLECTION_NAME].find_one({"meeting_id": meeting_id})
+        doc = await db[self.COLLECTION_NAME].find_one({"$or": [{"meeting_id": meeting_id}, {"_id": meeting_id}]})
+        if not doc:
+            try:
+                doc = await db[self.COLLECTION_NAME].find_one({"_id": ObjectId(meeting_id)})
+            except Exception:
+                pass
         return MeetingModel(**doc) if doc else None
+
 
     async def start_meeting(
         self, meeting_id: str, db: AsyncIOMotorDatabase
@@ -209,9 +215,11 @@ class MeetingService:
                     text=text,
                     transcript_segment_id=segment.segment_id,
                     db=db,
+                    speaker_name=speaker_name,
                 )
             except Exception as act_err:
                 print(f"[MeetingService] Real-time action check warning: {act_err}")
+
 
         return segment
 

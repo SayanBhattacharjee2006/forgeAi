@@ -44,6 +44,13 @@ async def require_project_member(
     """Validate that the project exists and the current user is a member (or owner)."""
     doc = await db["projects"].find_one({"project_id": project_id})
     if not doc:
+        # Fallback: try matching by MongoDB _id (ObjectId)
+        try:
+            from bson import ObjectId
+            doc = await db["projects"].find_one({"_id": ObjectId(project_id)})
+        except Exception:
+            doc = await db["projects"].find_one({"_id": project_id})
+    if not doc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Project not found",
@@ -51,6 +58,10 @@ async def require_project_member(
 
     project = ProjectModel(**doc)
     role = get_user_project_role(project, current_user.user_id)
+
+    # Fallback: also check with user's ObjectId
+    if role is None and hasattr(current_user, "id") and current_user.id:
+        role = get_user_project_role(project, str(current_user.id))
 
     if role is None:
         raise HTTPException(
@@ -69,6 +80,12 @@ async def require_project_owner(
     """Validate that the project exists and the current user has the OWNER role."""
     doc = await db["projects"].find_one({"project_id": project_id})
     if not doc:
+        try:
+            from bson import ObjectId
+            doc = await db["projects"].find_one({"_id": ObjectId(project_id)})
+        except Exception:
+            doc = await db["projects"].find_one({"_id": project_id})
+    if not doc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Project not found",
@@ -76,6 +93,9 @@ async def require_project_owner(
 
     project = ProjectModel(**doc)
     role = get_user_project_role(project, current_user.user_id)
+
+    if role is None and hasattr(current_user, "id") and current_user.id:
+        role = get_user_project_role(project, str(current_user.id))
 
     if role is None:
         raise HTTPException(

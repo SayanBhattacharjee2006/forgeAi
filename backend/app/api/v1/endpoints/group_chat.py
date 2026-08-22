@@ -86,6 +86,11 @@ async def send_group_message(
     )
     
     message["id"] = message.pop("_id")
+    ca = message.get("created_at")
+    if isinstance(ca, datetime):
+        if ca.tzinfo is None:
+            ca = ca.replace(tzinfo=timezone.utc)
+        message["created_at"] = ca.isoformat()
     return message
 
 
@@ -105,6 +110,13 @@ async def get_group_chat_history(
     async for msg in cursor:
         msg["id"] = msg.pop("_id")
         msg["user_name"] = user_map.get(msg["user_id"], msg.get("user_name", msg["user_id"]))
+        ca = msg.get("created_at")
+        if isinstance(ca, datetime):
+            if ca.tzinfo is None:
+                ca = ca.replace(tzinfo=timezone.utc)
+            msg["created_at"] = ca.isoformat()
+        elif isinstance(ca, str) and not ca.endswith("Z") and not ("+" in ca[-6:] or "-" in ca[-6:]):
+            msg["created_at"] = ca + "Z"
         messages.append(msg)
         
     return messages

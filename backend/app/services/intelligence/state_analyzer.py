@@ -25,16 +25,17 @@ class ProjectStateAnalyzer:
             db=db, project_id=project_id, user_id="system"
         )
         tech_stack = {
-            "languages": constitution.sections.technology.languages,
-            "frameworks": constitution.sections.technology.frameworks,
-            "databases": constitution.sections.technology.databases,
-            "infrastructure": constitution.sections.technology.infrastructure,
+            "languages": constitution.sections.technology.languages or [],
+            "frameworks": constitution.sections.technology.frameworks or [],
+            "databases": constitution.sections.technology.databases or [],
+            "infrastructure": constitution.sections.technology.infrastructure or [],
         }
 
-        # 2. Fetch Decisions
+        # 2. Fetch Decisions & Conflicts
         dec_cursor = db["decisions"].find({"project_id": project_id})
         decisions = await dec_cursor.to_list(length=100)
         active_decisions = [d for d in decisions if d.get("status") == "ACTIVE"]
+        conflicted_decisions = [d for d in decisions if d.get("status") == "CONFLICTED"]
 
         # 3. Fetch Action Items
         act_cursor = db["action_items"].find({"project_id": project_id})
@@ -60,50 +61,66 @@ class ProjectStateAnalyzer:
                 except Exception:
                     pass
 
-        # 4. Fetch Recent Meetings
-        meet_cursor = db["meetings"].find({"project_id": project_id}).sort("created_at", -1).limit(5)
-        meetings = await meet_cursor.to_list(length=5)
+        # 4. Fetch Ingestion & Chat metrics
+        chat_count = await db["chat_messages"].count_documents({"project_id": project_id})
+        meetings_count = await db["meetings"].count_documents({"project_id": project_id})
+        github_chunks = project_doc.get("ingestion_status", {}).get("github_chunks_count", 0) if project_doc else 0
 
-        # 5. Derive Current Phase & Active/Completed Work
-        active_work = [a.get("title") for a in open_actions[:5] if a.get("title")]
-        completed_work = [a.get("title") for a in completed_actions[:5] if a.get("title")]
-        for d in active_decisions[:3]:
-            completed_work.append(f"Decided: {d.get('decision_text')}")
+        # 5. Derive Active & Completed Work
+        active_work = [a.get("title") for a in open_actions[:4] if a.get("title")]
+        if not active_work and active_decisions:
+            active_work = [f"Enforcing: {d.get('decision_text')}" for d in active_decisions[:3]]
+        if not active_work:
+            active_work = [
+                f"Architecture alignment on {', '.join(tech_stack['frameworks'] or ['Core Stack'])}",
+                f"Constitution v{constitution.version} governance active",
+            ]
+
+        completed_work = [a.get("title") for a in completed_actions[:3] if a.get("title")]
+        for d in active_decisions[:4]:
+            if len(completed_work) < 6:
+                completed_work.append(f"Architectural Agreement: {d.get('decision_text')}")
+        if not completed_work:
+            completed_work = [f"Project Constitution established with {len(tech_stack['languages'])} language(s)"]
 
         # Phase inference heuristic
-        phase = "Active Development"
+        phase = "Active Architecture & Implementation"
         all_text = " ".join(active_work + completed_work).lower()
-        if "rag" in all_text or "retrieval" in all_text:
-            phase = "RAG & Retrieval Optimization"
-        elif "voice" in all_text or "meeting" in all_text:
-            phase = "Voice & Meeting Collaboration"
-        elif "decision" in all_text or "constitution" in all_text:
-            phase = "Architecture & Governance"
-        elif "auth" in all_text:
-            phase = "Authentication & Foundation"
+        if "rag" in all_text or "retrieval" in all_text or "qdrant" in all_text:
+            phase = "RAG & Vector Retrieval Pipeline"
+        elif "voice" in all_text or "meeting" in all_text or meetings_count > 0:
+            phase = "Collaborative Execution & Meetings"
+        elif conflicted_decisions:
+            phase = "Architecture Conflict Arbitration"
+        elif constitution.version > 1:
+            phase = "Iterative Evolution & Scaling"
 
         # 6. Determine Health Status with Explainable Reasons
         health_reasons = []
         if len(blocked_actions) > 0:
             health_status = HealthStatus.AT_RISK.value
-            health_reasons.append(f"{len(blocked_actions)} critical task(s) currently flagged as blocked.")
+            health_reasons.append(f"{len(blocked_actions)} critical action item(s) flagged as blocked.")
+        elif len(conflicted_decisions) > 0:
+            health_status = HealthStatus.ATTENTION.value
+            health_reasons.append(f"{len(conflicted_decisions)} architectural decision conflict(s) require review in Decision Log.")
         elif len(overdue_actions) > 0:
             health_status = HealthStatus.ATTENTION.value
-            health_reasons.append(f"{len(overdue_actions)} action item(s) are past their target deadline.")
-        elif any(d.get("status") == "CONFLICTED" for d in decisions):
+            health_reasons.append(f"{len(overdue_actions)} action item(s) are past target deadline.")
+        elif not tech_stack["frameworks"] and not tech_stack["databases"]:
             health_status = HealthStatus.ATTENTION.value
-            health_reasons.append("Conflicting architectural decisions detected in project decision records.")
+            health_reasons.append("Project Constitution tech stack is partially underspecified.")
         else:
             health_status = HealthStatus.HEALTHY.value
-            health_reasons.append("All documented action items on track with active architectural alignment.")
+            health_reasons.append(f"Architecture aligned with Project Constitution v{constitution.version}; 0 active conflicts.")
 
-        # 7. Generate Project Summary
+        # 7. Generate Project Executive Summary
         summary = (
-            f"Project '{project_name}' is currently in the '{phase}' phase with {len(active_decisions)} active architectural decision(s) "
-            f"and {len(open_actions)} open action item(s)."
+            f"Project '{project_name}' is operating in the '{phase}' phase under Constitution v{constitution.version}. "
+            f"Currently tracking {len(active_decisions)} active decision(s), {len(conflicted_decisions)} conflict(s), "
+            f"{chat_count} team message(s), and {github_chunks} indexed code chunk(s)."
         )
-        if blocked_actions:
-            summary += f" Attention required: {len(blocked_actions)} item(s) are blocked."
+        if health_reasons:
+            summary += f" Diagnostic: {health_reasons[0]}"
 
         snapshot = ProjectStateSnapshot(
             id=str(ObjectId()),
@@ -148,7 +165,6 @@ class ProjectStateAnalyzer:
 
         doc = await db[self.COLLECTION_NAME].find_one({"project_id": project_id})
         if doc:
-            snapshot = ProjectStateSnapshot(**doc)
-            cache_service.set_cached_state_snapshot(project_id, snapshot.model_dump(by_alias=True))
-            return snapshot
+            return ProjectStateSnapshot(**doc)
+
         return await self.analyze_project_state(project_id, db)

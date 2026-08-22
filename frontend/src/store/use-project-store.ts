@@ -9,6 +9,12 @@ interface ProjectState {
   currentProject: Project | null;
   isLoading: boolean;
   error: string | null;
+  isCreateDialogOpen: boolean;
+  isJoinDialogOpen: boolean;
+  openCreateDialog: () => void;
+  closeCreateDialog: () => void;
+  openJoinDialog: () => void;
+  closeJoinDialog: () => void;
   fetchProjects: () => Promise<void>;
   fetchProject: (id: string, silent?: boolean) => Promise<void>;
   setCurrentProject: (project: Project | null) => void;
@@ -26,6 +32,13 @@ export const useProjectStore = create<ProjectState>()((set, get) => ({
   currentProject: null,
   isLoading: false,
   error: null,
+  isCreateDialogOpen: false,
+  isJoinDialogOpen: false,
+
+  openCreateDialog: () => set({ isCreateDialogOpen: true }),
+  closeCreateDialog: () => set({ isCreateDialogOpen: false }),
+  openJoinDialog: () => set({ isJoinDialogOpen: true }),
+  closeJoinDialog: () => set({ isJoinDialogOpen: false }),
 
   fetchProjects: async () => {
     set({ isLoading: true, error: null });

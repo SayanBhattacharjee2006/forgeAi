@@ -48,18 +48,18 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 
   /* Forge design tokens */
-  --color-emerald: #10b981;
-  --color-emerald-light: #34d399;
-  --color-emerald-dark: #059669;
-  --color-surface: #0a0a0a;
-  --color-surface-elevated: #111111;
-  --color-surface-hover: #171717;
-  --color-border-subtle: #1a1a1a;
-  --color-border-default: #262626;
-  --color-text-primary: #fafafa;
-  --color-text-secondary: #a3a3a3;
-  --color-text-tertiary: #737373;
-  --color-text-muted: #525252;
+  --color-emerald: #22c55e;
+  --color-emerald-light: #4ade80;
+  --color-emerald-dark: #16a34a;
+  --color-surface: var(--card);
+  --color-surface-elevated: var(--card);
+  --color-surface-hover: var(--accent);
+  --color-border-subtle: var(--border);
+  --color-border-default: var(--border);
+  --color-text-primary: var(--foreground);
+  --color-text-secondary: var(--muted-foreground);
+  --color-text-tertiary: var(--muted-foreground);
+  --color-text-muted: var(--muted-foreground);
   --color-status-success: #22c55e;
   --color-status-warning: #f59e0b;
   --color-status-error: #ef4444;
@@ -68,77 +68,80 @@
 
 /* Forge is permanently dark — no light mode */
 :root {
-  --background: #050505;
-  --foreground: #fafafa;
-  --card: #0a0a0a;
-  --card-foreground: #fafafa;
-  --popover: #0a0a0a;
-  --popover-foreground: #fafafa;
-  --primary: #10b981;
+  --background: #ffffff;
+  --foreground: #09090b;
+  --card: #f4f4f5;
+  --card-foreground: #09090b;
+  --popover: #ffffff;
+  --popover-foreground: #09090b;
+  --primary: #09090b;
   --primary-foreground: #ffffff;
-  --secondary: #171717;
-  --secondary-foreground: #fafafa;
-  --muted: #111111;
-  --muted-foreground: #737373;
-  --accent: #111111;
-  --accent-foreground: #10b981;
+  --secondary: #e4e4e7;
+  --secondary-foreground: #09090b;
+  --muted: #f4f4f5;
+  --muted-foreground: #52525b;
+  --accent: #e4e4e7;
+  --accent-foreground: #09090b;
   --destructive: #ef4444;
-  --border: #1a1a1a;
-  --input: #171717;
-  --ring: #10b981;
-  --chart-1: #10b981;
-  --chart-2: #34d399;
-  --chart-3: #6ee7b7;
-  --chart-4: #059669;
-  --chart-5: #047857;
+  --border: #d4d4d8;
+  --input: #ffffff;
+  --ring: #71717a;
+  --chart-1: #09090b;
+  --chart-2: #3f3f46;
+  --chart-3: #71717a;
+  --chart-4: #a1a1aa;
+  --chart-5: #d4d4d8;
   --radius: 0.5rem;
-  --sidebar: #0a0a0a;
-  --sidebar-foreground: #a3a3a3;
-  --sidebar-primary: #10b981;
+  --sidebar: #f4f4f5;
+  --sidebar-foreground: #52525b;
+  --sidebar-primary: #09090b;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #111111;
-  --sidebar-accent-foreground: #fafafa;
-  --sidebar-border: #1a1a1a;
-  --sidebar-ring: #10b981;
+  --sidebar-accent: #e4e4e7;
+  --sidebar-accent-foreground: #09090b;
+  --sidebar-border: #d4d4d8;
+  --sidebar-ring: #71717a;
 }
 
 .dark {
-  --background: #050505;
+  --background: #09090b;
   --foreground: #fafafa;
-  --card: #0a0a0a;
+  --card: #18181b;
   --card-foreground: #fafafa;
-  --popover: #0a0a0a;
+  --popover: #18181b;
   --popover-foreground: #fafafa;
-  --primary: #10b981;
-  --primary-foreground: #ffffff;
-  --secondary: #171717;
+  --primary: #ffffff;
+  --primary-foreground: #09090b;
+  --secondary: #27272a;
   --secondary-foreground: #fafafa;
-  --muted: #111111;
-  --muted-foreground: #737373;
-  --accent: #111111;
-  --accent-foreground: #10b981;
+  --muted: #18181b;
+  --muted-foreground: #a1a1aa;
+  --accent: #27272a;
+  --accent-foreground: #fafafa;
   --destructive: #ef4444;
-  --border: #1a1a1a;
-  --input: #171717;
-  --ring: #10b981;
-  --chart-1: #10b981;
-  --chart-2: #34d399;
-  --chart-3: #6ee7b7;
-  --chart-4: #059669;
-  --chart-5: #047857;
-  --sidebar: #0a0a0a;
-  --sidebar-foreground: #a3a3a3;
-  --sidebar-primary: #10b981;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #111111;
+  --border: #27272a;
+  --input: #18181b;
+  --ring: #71717a;
+  --chart-1: #ffffff;
+  --chart-2: #d4d4d8;
+  --chart-3: #a1a1aa;
+  --chart-4: #71717a;
+  --chart-5: #3f3f46;
+  --sidebar: #18181b;
+  --sidebar-foreground: #a1a1aa;
+  --sidebar-primary: #ffffff;
+  --sidebar-primary-foreground: #09090b;
+  --sidebar-accent: #27272a;
   --sidebar-accent-foreground: #fafafa;
-  --sidebar-border: #1a1a1a;
-  --sidebar-ring: #10b981;
+  --sidebar-border: #27272a;
+  --sidebar-ring: #71717a;
 }
 
 @layer base {
-  * {
+  *,
+  *::before,
+  *::after {
     @apply border-border outline-ring/50;
+    transition: background-color 250ms ease, color 250ms ease, border-color 250ms ease, box-shadow 250ms ease, text-decoration-color 250ms ease, fill 250ms ease, stroke 250ms ease;
   }
 
   body {
@@ -153,52 +156,62 @@
   }
 }
 
-/* ========== SURFACE UTILITIES ========== */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
 
+/* ========== SURFACE UTILITIES ========== */
+ 
 .surface {
-  background: #0a0a0a;
-  border: 1px solid #1a1a1a;
+  background: var(--card);
+  border: 1px solid var(--border);
   border-radius: 8px;
 }
 
 .surface-elevated {
-  background: #111111;
-  border: 1px solid #1a1a1a;
+  background: var(--card);
+  border: 1px solid var(--border);
   border-radius: 8px;
 }
 
 .surface-inset {
-  background: #050505;
-  border: 1px solid #1a1a1a;
+  background: var(--background);
+  border: 1px solid var(--border);
   border-radius: 8px;
 }
 
 .surface-hover {
-  transition: background-color 0.15s ease, border-color 0.15s ease;
+  transition: background-color 250ms ease, border-color 250ms ease;
 }
 
 .surface-hover:hover {
-  background: #111111;
-  border-color: #262626;
+  background: var(--accent);
+  border-color: var(--border);
 }
 
 /* ========== INPUT UTILITY ========== */
 
 .forge-input {
-  background: #0a0a0a;
-  border: 1px solid #1a1a1a;
+  background: var(--background);
+  border: 1px solid var(--border);
   border-radius: 6px;
-  color: #fafafa;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  color: var(--foreground);
+  transition: border-color 250ms ease, box-shadow 250ms ease, background-color 250ms ease, color 250ms ease;
 }
 
 .forge-input::placeholder {
-  color: #525252;
+  color: var(--muted-foreground);
 }
 
 .forge-input:focus {
-  border-color: #10b981;
-  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.15);
+  border-color: #22c55e;
+  box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.15);
   outline: none;
 }
 
@@ -417,23 +430,23 @@
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: #525252;
-  border-bottom: 1px solid #1a1a1a;
+  color: var(--muted-foreground);
+  border-bottom: 1px solid var(--border);
 }
 
 .forge-table td {
   padding: 10px 16px;
   font-size: 13px;
-  color: #a3a3a3;
-  border-bottom: 1px solid #0f0f0f;
+  color: var(--foreground);
+  border-bottom: 1px solid var(--border);
 }
 
 .forge-table tr {
-  transition: background-color 0.1s ease;
+  transition: background-color 250ms ease;
 }
 
 .forge-table tbody tr:hover {
-  background: #0f0f0f;
+  background: var(--accent);
 }
 
 /* ========== BADGE ========== */
@@ -447,6 +460,7 @@
   font-weight: 500;
   border-radius: 4px;
   letter-spacing: 0.02em;
+  transition: background-color 250ms ease, color 250ms ease, border-color 250ms ease;
 }
 
 .forge-badge-success {
@@ -470,21 +484,25 @@
 }
 
 .forge-badge-neutral {
-  background: rgba(115, 115, 115, 0.15);
-  color: #a3a3a3;
+  background: var(--card);
+  color: var(--muted-foreground);
+  border: 1px solid var(--border);
 }
 
 .forge-badge-accent {
-  background: rgba(16, 185, 129, 0.1);
-  color: #10b981;
+  background: rgba(34, 197, 94, 0.1);
+  color: #22c55e;
 }
 
 /* ========== GLOWING BORDER ANIMATION ========== */
 @keyframes border-glow-pulse {
-  0%, 100% {
+
+  0%,
+  100% {
     border-color: rgba(255, 255, 255, 0.25);
     box-shadow: 0 0 12px rgba(255, 255, 255, 0.15), inset 0 0 8px rgba(255, 255, 255, 0.04);
   }
+
   50% {
     border-color: rgba(255, 255, 255, 0.85);
     box-shadow: 0 0 28px rgba(255, 255, 255, 0.45), inset 0 0 14px rgba(255, 255, 255, 0.1);
@@ -495,8 +513,27 @@
   animation: border-glow-pulse 2.6s ease-in-out infinite;
 }
 
+/* ========== RECENT ACTIVITY SCROLL ANIMATION ========== */
+@keyframes vertical-scroll-loop {
+  0% {
+    transform: translateY(0%);
+  }
+  100% {
+    transform: translateY(-50%);
+  }
+}
+
+.animate-activity-scroll {
+  animation: vertical-scroll-loop 20s linear infinite;
+}
+
+.animate-activity-scroll:hover {
+  animation-play-state: paused;
+}
+
 /* ========== ACCESSIBILITY: REDUCED MOTION ========== */
 @media (prefers-reduced-motion: reduce) {
+
   *,
   ::before,
   ::after {

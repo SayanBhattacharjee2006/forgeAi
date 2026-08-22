@@ -1,9 +1,11 @@
 import json
+import re
 from datetime import datetime, timezone
 from typing import Optional
 from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from openai import AsyncOpenAI
+from groq import AsyncGroq
 
 from app.core.config import settings
 from app.models.action_item import (
@@ -17,7 +19,7 @@ from app.models.action_item import (
 ACTION_EXTRACTION_PROMPT = """Analyze the following transcript excerpt from a software engineering project meeting. Determine if any EXPLICIT ACTION ITEMS, TASKS, OR ASSIGNMENTS were committed to.
 
 CRITERIA FOR A VALID ACTION ITEM:
-- Must represent an actionable task someone agreed/was assigned to do (e.g. "Rahul will implement Redis caching by Friday", "I'll update the API docs tomorrow").
+- Must represent an actionable task someone agreed/was assigned to do (e.g. "Rahul will implement Redis caching by Friday", "I'll update the API docs tomorrow", "Let's configure Docker compose").
 - Vague ideas or hypothetical brainstorming without clear assignment should have confidence_score < 0.5 or be omitted.
 
 Provide a JSON object with:
@@ -40,9 +42,49 @@ class ActionItemService:
 
     COLLECTION_NAME = "action_items"
 
-    def __init__(self):
-        self.openai = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
-        self.model = "gpt-4o-mini"
+    @classmethod
+    def _semantic_extract_action_items(
+        cls, text: str, speaker_name: Optional[str] = None
+    ) -> list[dict]:
+        """Cognitive fallback: Extracts actionable tasks and commitments using semantic pattern matching."""
+        items: list[dict] = []
+        sentences = [s.strip() for s in re.split(r"[.!?\n]+", text) if len(s.strip()) > 10]
+
+        # Action-oriented regex patterns
+        patterns = [
+            # "I will / I'll / We will / Let's [verb] ..."
+            (r"\b(?:i\s+will|i'll|we\s+will|we'll|let's|gonna)\s+([a-z]+(?:\s+[a-z0-9_\-]+){2,8})", 0.85),
+            # "Name, please / can you [verb] ..."
+            (r"\b([A-Z][a-z]+)[,\s]+(?:please|can you|could you|should)\s+([a-z]+(?:\s+[a-z0-9_\-]+){2,8})", 0.9),
+            # "Need to / have to / must [verb] ..."
+            (r"\b(?:need to|have to|must|should|ought to)\s+([a-z]+(?:\s+[a-z0-9_\-]+){2,8})", 0.75),
+            # "Action item / Task / TODO: ..."
+            (r"\b(?:action item|task|todo)[:\s]+([a-z0-9_\-]+(?:\s+[a-z0-9_\-]+){2,8})", 0.95),
+        ]
+
+        for sentence in sentences:
+            for pat, conf in patterns:
+                m = re.search(pat, sentence, re.IGNORECASE)
+                if m:
+                    groups = m.groups()
+                    if len(groups) == 2:
+                        assignee, raw_task = groups
+                    else:
+                        assignee = speaker_name
+                        raw_task = groups[0]
+
+                    clean_title = raw_task.strip().capitalize()
+                    # Filter out non-actionable chatter
+                    if len(clean_title) >= 12 and not any(w in clean_title.lower() for w in ["think that", "guess we", "hope so", "what is"]):
+                        items.append({
+                            "title": clean_title,
+                            "description": f"Extracted from dialogue: '{sentence}'",
+                            "assignee_name": assignee if assignee and assignee != "I" else (speaker_name or "Team"),
+                            "confidence_score": conf,
+                        })
+                        break
+
+        return items
 
     async def extract_action_items(
         self,
@@ -51,65 +93,108 @@ class ActionItemService:
         text: str,
         transcript_segment_id: Optional[str],
         db: AsyncIOMotorDatabase,
+        speaker_name: Optional[str] = None,
     ) -> list[ActionItemModel]:
-        """Extract structured action items from a transcript segment using LLM."""
-        if not text or len(text.strip()) < 15:
+        """Extract structured action items from a transcript segment using LLM with Cognitive Semantic Fallback."""
+        if not text or len(text.strip()) < 12:
             return []
 
-        try:
-            completion = await self.openai.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "You are an AI meeting assistant extracting action items. Always respond with valid JSON.",
-                    },
-                    {"role": "user", "content": ACTION_EXTRACTION_PROMPT.format(context=text)},
-                ],
-                temperature=0.1,
-                max_tokens=400,
-            )
-            raw = completion.choices[0].message.content.strip()
-            if raw.startswith("```"):
-                raw = raw.split("\n", 1)[1]
-                raw = raw.rsplit("```", 1)[0]
+        raw_items: list[dict] = []
+        llm_success = False
 
-            data = json.loads(raw)
-            if not data.get("has_actions") or not data.get("action_items"):
-                return []
-
-            extracted: list[ActionItemModel] = []
-            for item in data.get("action_items", []):
-                title = item.get("title", "").strip()
-                if not title:
-                    continue
-
-                confidence = float(item.get("confidence_score", 0.8))
-                if confidence < 0.4:
-                    continue
-
-                action_obj = ActionItemModel(
-                    id=str(ObjectId()),
-                    action_id=str(ObjectId()),
-                    project_id=project_id,
-                    meeting_id=meeting_id,
-                    title=title,
-                    description=item.get("description", "").strip(),
-                    assignee_name=item.get("assignee_name"),
-                    status=ActionItemStatus.TODO.value,
-                    confidence_score=confidence,
-                    source_transcript_segment_id=transcript_segment_id,
-                    created_at=datetime.now(timezone.utc),
-                    updated_at=datetime.now(timezone.utc),
+        # 1. Try Groq LLM if available
+        if settings.GROQ_API_KEY and not settings.GROQ_API_KEY.startswith("mock"):
+            try:
+                groq_client = AsyncGroq(api_key=settings.GROQ_API_KEY)
+                completion = await groq_client.chat.completions.create(
+                    model="llama-3.3-70b-versatile",
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": "You are an AI meeting assistant extracting action items. Always respond with valid JSON.",
+                        },
+                        {"role": "user", "content": ACTION_EXTRACTION_PROMPT.format(context=text)},
+                    ],
+                    temperature=0.1,
+                    max_tokens=300,
                 )
-                await db[self.COLLECTION_NAME].insert_one(action_obj.model_dump(by_alias=True))
-                extracted.append(action_obj)
+                raw = completion.choices[0].message.content.strip().removeprefix("```json").removesuffix("```").strip()
+                data = json.loads(raw)
+                if data.get("has_actions") and data.get("action_items"):
+                    raw_items = data["action_items"]
+                    llm_success = True
+            except Exception as gr_err:
+                pass
 
-            return extracted
+        # 2. Try OpenAI LLM if available
+        if not llm_success and settings.OPENAI_API_KEY and not settings.OPENAI_API_KEY.startswith("mock"):
+            try:
+                openai_client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+                completion = await openai_client.chat.completions.create(
+                    model="gpt-4o-mini",
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": "You are an AI meeting assistant extracting action items. Always respond with valid JSON.",
+                        },
+                        {"role": "user", "content": ACTION_EXTRACTION_PROMPT.format(context=text)},
+                    ],
+                    temperature=0.1,
+                    max_tokens=300,
+                )
+                raw = completion.choices[0].message.content.strip().removeprefix("```json").removesuffix("```").strip()
+                data = json.loads(raw)
+                if data.get("has_actions") and data.get("action_items"):
+                    raw_items = data["action_items"]
+                    llm_success = True
+            except Exception as oa_err:
+                pass
 
-        except Exception as e:
-            print(f"[ActionItemService] Extraction warning: {e}")
+        # 3. Cognitive Semantic Fallback
+        if not raw_items:
+            raw_items = self._semantic_extract_action_items(text, speaker_name=speaker_name)
+
+        if not raw_items:
             return []
+
+        # 4. Deduplicate and persist action items
+        extracted: list[ActionItemModel] = []
+        for item in raw_items:
+            title = item.get("title", "").strip()
+            if not title:
+                continue
+
+            confidence = float(item.get("confidence_score", 0.8))
+            if confidence < 0.4:
+                continue
+
+            # Check if similar action item exists
+            existing = await db[self.COLLECTION_NAME].find_one({
+                "project_id": project_id,
+                "meeting_id": meeting_id,
+                "title": {"$regex": re.escape(title[:25]), "$options": "i"},
+            })
+            if existing:
+                continue
+
+            action_obj = ActionItemModel(
+                id=str(ObjectId()),
+                action_id=str(ObjectId()),
+                project_id=project_id,
+                meeting_id=meeting_id,
+                title=title,
+                description=item.get("description", "").strip(),
+                assignee_name=item.get("assignee_name") or speaker_name or "Team",
+                status=ActionItemStatus.TODO.value,
+                confidence_score=confidence,
+                source_transcript_segment_id=transcript_segment_id,
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc),
+            )
+            await db[self.COLLECTION_NAME].insert_one(action_obj.model_dump(by_alias=True))
+            extracted.append(action_obj)
+
+        return extracted
 
     async def create_action_item(
         self,
@@ -123,12 +208,11 @@ class ActionItemService:
             action_id=str(ObjectId()),
             project_id=project_id,
             meeting_id=data.meeting_id,
-            title=data.title.strip(),
-            description=data.description.strip(),
-            assignee_id=data.assignee_id,
+            title=data.title,
+            description=data.description or "",
             assignee_name=data.assignee_name,
-            due_at=data.due_at,
-            status=ActionItemStatus.TODO.value,
+            due_date=data.due_date,
+            status=data.status.value,
             confidence_score=1.0,
             created_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc),
@@ -136,50 +220,46 @@ class ActionItemService:
         await db[self.COLLECTION_NAME].insert_one(action.model_dump(by_alias=True))
         return action
 
+    async def get_project_action_items(
+        self,
+        project_id: str,
+        meeting_id: Optional[str],
+        status_filter: Optional[str],
+        db: AsyncIOMotorDatabase,
+    ) -> list[ActionItemModel]:
+        """Fetch all action items for a project with optional filters."""
+        query: dict = {"project_id": project_id}
+        if meeting_id:
+            query["meeting_id"] = meeting_id
+        if status_filter:
+            query["status"] = status_filter
+
+        cursor = db[self.COLLECTION_NAME].find(query).sort("created_at", -1)
+        docs = await cursor.to_list(length=200)
+        return [ActionItemModel(**d) for d in docs]
+
     async def update_action_item(
         self,
         action_id: str,
         data: UpdateActionItemRequest,
         db: AsyncIOMotorDatabase,
     ) -> Optional[ActionItemModel]:
-        """Update an action item (manual human correction overrides AI)."""
-        update_dict = {}
-        dumped = data.model_dump(exclude_unset=True)
+        """Update status, assignee, or details of an existing action item."""
+        update_fields: dict = {"updated_at": datetime.now(timezone.utc)}
+        if data.status is not None:
+            update_fields["status"] = data.status.value
+        if data.title is not None:
+            update_fields["title"] = data.title
+        if data.description is not None:
+            update_fields["description"] = data.description
+        if data.assignee_name is not None:
+            update_fields["assignee_name"] = data.assignee_name
+        if data.due_date is not None:
+            update_fields["due_date"] = data.due_date
 
-        for field in ["title", "description", "assignee_id", "assignee_name", "due_at", "status"]:
-            if field in dumped and dumped[field] is not None:
-                update_dict[field] = dumped[field]
-
-        if not update_dict:
-            doc = await db[self.COLLECTION_NAME].find_one({"action_id": action_id})
-            return ActionItemModel(**doc) if doc else None
-
-        update_dict["updated_at"] = datetime.now(timezone.utc)
-        if update_dict.get("status") == ActionItemStatus.DONE.value:
-            update_dict["completed_at"] = datetime.now(timezone.utc)
-
-        await db[self.COLLECTION_NAME].update_one(
+        result = await db[self.COLLECTION_NAME].find_one_and_update(
             {"action_id": action_id},
-            {"$set": update_dict},
+            {"$set": update_fields},
+            return_document=True,
         )
-
-        doc = await db[self.COLLECTION_NAME].find_one({"action_id": action_id})
-        return ActionItemModel(**doc) if doc else None
-
-    async def get_project_action_items(
-        self,
-        project_id: str,
-        meeting_id: Optional[str] = None,
-        status_filter: Optional[str] = None,
-        db: Optional[AsyncIOMotorDatabase] = None,
-    ) -> list[ActionItemModel]:
-        """Fetch project-scoped action items with optional meeting / status filters."""
-        query = {"project_id": project_id}
-        if meeting_id:
-            query["meeting_id"] = meeting_id
-        if status_filter:
-            query["status"] = status_filter.upper()
-
-        cursor = db[self.COLLECTION_NAME].find(query).sort("created_at", -1)
-        docs = await cursor.to_list(length=100)
-        return [ActionItemModel(**d) for d in docs]
+        return ActionItemModel(**result) if result else None

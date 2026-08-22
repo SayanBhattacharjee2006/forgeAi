@@ -25,11 +25,27 @@ class ApiClient {
   }
 
   private getHeaders(): HeadersInit {
+    let token = this.token;
+    if (!token && typeof window !== "undefined") {
+      try {
+        const raw = localStorage.getItem("forge-auth");
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          token = parsed?.state?.token;
+        }
+        if (!token) {
+          token = localStorage.getItem("token");
+        }
+        if (token) {
+          this.token = token;
+        }
+      } catch {}
+    }
     const headers: HeadersInit = {
       "Content-Type": "application/json",
     };
-    if (this.token) {
-      headers["Authorization"] = `Bearer ${this.token}`;
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
     }
     return headers;
   }
@@ -119,19 +135,47 @@ class ApiClient {
         if (typeof window !== "undefined") {
           try {
             localStorage.removeItem("forge-auth");
+            localStorage.removeItem("token");
           } catch {}
-          // Redirect to login
           window.location.href = "/login";
+        }
+      } else if (endpoint.startsWith("/auth/") && (res.status === 403 || res.status === 404)) {
+        this.setToken(null);
+        if (typeof window !== "undefined") {
+          try {
+            localStorage.removeItem("forge-auth");
+            localStorage.removeItem("token");
+          } catch {}
         }
       }
 
-      const error = await res.json().catch(() => ({ detail: res.statusText }));
+      let error: any = {};
+      try {
+        error = await res.json();
+      } catch {
+        error = { detail: res.statusText || `HTTP Error ${res.status}` };
+      }
+
       if (res.status !== 401) {
         console.error(`[ApiClient Error] ${res.status} on ${endpoint}:`, error);
       }
-      throw new Error(error.detail || `API request failed with status ${res.status}`);
+      throw new Error(error?.detail || error?.message || `API request failed with status ${res.status}`);
     }
-    return res.json();
+
+    if (res.status === 204 || res.headers.get("content-length") === "0") {
+      return {} as T;
+    }
+
+    const text = await res.text();
+    if (!text || !text.trim()) {
+      return {} as T;
+    }
+
+    try {
+      return JSON.parse(text) as T;
+    } catch {
+      return text as unknown as T;
+    }
   }
 
   async get<T>(endpoint: string): Promise<T> {

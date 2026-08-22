@@ -75,14 +75,22 @@ export const useAuthStore = create<AuthState>()(
           set({ user, token: api.getToken(), isAuthenticated: true, isLoading: false });
         } catch (err: any) {
           console.warn("Session check returned error:", err);
-          // The API client already handles 401 → refresh → retry.
-          // If we still get here, the refresh also failed — clear state.
+          // If auth fails (401, 403, 404, unauthorized, invalid user), reset token and clear auth
           if (
             err?.message?.includes("401") ||
+            err?.message?.includes("403") ||
+            err?.message?.includes("404") ||
             err?.message?.includes("Unauthorized") ||
-            err?.message?.includes("expired")
+            err?.message?.includes("expired") ||
+            err?.message?.includes("User not found")
           ) {
             api.setToken(null);
+            if (typeof window !== "undefined") {
+              try {
+                localStorage.removeItem("forge-auth");
+                localStorage.removeItem("token");
+              } catch {}
+            }
             set({ user: null, token: null, isAuthenticated: false, isLoading: false });
           } else {
             // Network error or other issue — don't wipe session

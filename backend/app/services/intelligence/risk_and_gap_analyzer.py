@@ -7,6 +7,7 @@ from app.models.project_state import (
     RiskStatus,
     KnowledgeGap,
 )
+from app.services.constitution_service import ConstitutionService
 
 
 class RiskAndGapAnalyzer:
@@ -23,18 +24,122 @@ class RiskAndGapAnalyzer:
         gaps: list[KnowledgeGap] = []
         now = datetime.now(timezone.utc)
 
-        # 1. Analyze Action Items for Blockers and Overdue Deadlines
+        # 1. Check for Conflicting Decisions (High Severity Risk)
+        cursor_conflicts = db["decisions"].find({"project_id": project_id, "status": "CONFLICTED"})
+        conflicts = await cursor_conflicts.to_list(length=10)
+        for conf in conflicts:
+            conflict_details = await db["decision_conflicts"].find_one({
+                "project_id": project_id,
+                "$or": [{"decision_id_a": conf.get("decision_id")}, {"decision_id_b": conf.get("decision_id")}],
+            })
+            explanation = conflict_details.get("explanation") if conflict_details else "Contradicts active Project Constitution or decision records."
+            risks.append(
+                ProjectRisk(
+                    id=str(ObjectId()),
+                    risk_id=f"risk_conflict_{conf.get('decision_id')}",
+                    project_id=project_id,
+                    title=f"Architectural Conflict: {conf.get('decision_text', '')[:70]}",
+                    impact_explanation=f"Conflicting decisions introduce contradictory implementation standards across team members. Details: {explanation}",
+                    severity=RiskSeverity.HIGH.value,
+                    evidence=[
+                        {
+                            "source_type": "decision",
+                            "source_id": conf.get("decision_id"),
+                            "status": "CONFLICTED",
+                            "decision_text": conf.get("decision_text"),
+                        }
+                    ],
+                    detected_at=now,
+                    status=RiskStatus.OPEN.value,
+                )
+            )
+
+        # 2. Check for Project Constitution Completeness & Gaps
+        constitution = await ConstitutionService.get_or_create_constitution(db, project_id, "system")
+        c_tech = constitution.sections.technology
+        c_arch = constitution.sections.architecture
+        c_git = constitution.sections.git_workflow
+
+        if not c_tech.databases:
+            gaps.append(
+                KnowledgeGap(
+                    id=str(ObjectId()),
+                    gap_id=f"gap_no_db_{project_id}",
+                    project_id=project_id,
+                    area="Database Architecture",
+                    description="Project Constitution does not specify primary operational or caching databases.",
+                    suggested_action="Specify database technologies in the Project Constitution (e.g. MongoDB, Redis).",
+                    detected_at=now,
+                )
+            )
+
+        if not c_arch.rules:
+            gaps.append(
+                KnowledgeGap(
+                    id=str(ObjectId()),
+                    gap_id=f"gap_no_arch_rules_{project_id}",
+                    project_id=project_id,
+                    area="Architecture Guidelines",
+                    description="No core architecture rules or patterns are codified in Section 2 of the Constitution.",
+                    suggested_action="Define layered architecture rules (e.g., repository pattern, dependency injection).",
+                    detected_at=now,
+                )
+            )
+
+        if not c_git.branch_naming:
+            gaps.append(
+                KnowledgeGap(
+                    id=str(ObjectId()),
+                    gap_id=f"gap_no_git_rules_{project_id}",
+                    project_id=project_id,
+                    area="Git Workflow",
+                    description="Branch naming conventions and merge strategies are unconfigured.",
+                    suggested_action="Document feature/bugfix branch patterns and merge policies.",
+                    detected_at=now,
+                )
+            )
+
+        # 3. Check for Disconnected Ingestion Sources
+        project_doc = await db["projects"].find_one({"project_id": project_id})
+        if project_doc:
+            if not project_doc.get("github_repo_name") and not project_doc.get("github_repo_url"):
+                risks.append(
+                    ProjectRisk(
+                        id=str(ObjectId()),
+                        risk_id=f"risk_no_github_{project_id}",
+                        project_id=project_id,
+                        title="GitHub Repository Disconnected",
+                        impact_explanation="Without a connected GitHub repository, Forge AI cannot analyze code diffs, semantic chunks, or pull request drift.",
+                        severity=RiskSeverity.MEDIUM.value,
+                        evidence=[{"source_type": "project_settings", "field": "github_repo_name", "value": None}],
+                        detected_at=now,
+                        status=RiskStatus.OPEN.value,
+                    )
+                )
+
+            if not project_doc.get("discord_guild_id"):
+                gaps.append(
+                    KnowledgeGap(
+                        id=str(ObjectId()),
+                        gap_id=f"gap_no_discord_{project_id}",
+                        project_id=project_id,
+                        area="Team Communication Integration",
+                        description="Discord server is not connected for live team chat and voice meeting ingestion.",
+                        suggested_action="Connect Discord Guild in Project Overview settings to capture real-time team discussions.",
+                        detected_at=now,
+                    )
+                )
+
+        # 4. Analyze Action Items for Blockers and Overdue Tasks
         cursor_actions = db["action_items"].find({"project_id": project_id})
-        actions = await cursor_actions.to_list(length=100)
+        actions = await cursor_actions.to_list(length=50)
 
         for act in actions:
             status = act.get("status", "TODO")
             title = act.get("title", "")
             desc = act.get("description", "")
             due_at = act.get("due_at")
-            assignee = act.get("assignee_name") or act.get("assignee_id")
 
-            # Check for explicit blockers
             if "blocked" in title.lower() or "blocked" in desc.lower():
                 risks.append(
                     ProjectRisk(
@@ -42,21 +147,14 @@ class RiskAndGapAnalyzer:
                         risk_id=f"risk_blocked_{act.get('action_id')}",
                         project_id=project_id,
                         title=f"Blocked Action Item: {title}",
-                        impact_explanation="A critical project task has been flagged as blocked in project records.",
+                        impact_explanation="A critical project milestone has been flagged as blocked in action item records.",
                         severity=RiskSeverity.HIGH.value,
-                        evidence=[
-                            {
-                                "source_type": "action_item",
-                                "source_id": act.get("action_id"),
-                                "title": title,
-                            }
-                        ],
+                        evidence=[{"source_type": "action_item", "source_id": act.get("action_id"), "title": title}],
                         detected_at=now,
                         status=RiskStatus.OPEN.value,
                     )
                 )
 
-            # Check for overdue tasks
             if status in ["TODO", "IN_PROGRESS"] and due_at:
                 try:
                     due_dt = due_at if isinstance(due_at, datetime) else datetime.fromisoformat(str(due_at))
@@ -68,17 +166,10 @@ class RiskAndGapAnalyzer:
                                 id=str(ObjectId()),
                                 risk_id=f"risk_overdue_{act.get('action_id')}",
                                 project_id=project_id,
-                                title=f"Overdue Action Item: {title}",
-                                impact_explanation=f"Task was scheduled to complete by {due_dt.strftime('%b %d, %Y')}.",
-                                severity=RiskSeverity.MEDIUM.value,
-                                evidence=[
-                                    {
-                                        "source_type": "action_item",
-                                        "source_id": act.get("action_id"),
-                                        "title": title,
-                                        "due_at": due_dt.isoformat(),
-                                    }
-                                ],
+                                title=f"Overdue Task: {title}",
+                                impact_explanation=f"Task target date ({due_dt.strftime('%b %d, %Y')}) has passed without completion.",
+                                severity=RiskSeverity.LOW.value,
+                                evidence=[{"source_type": "action_item", "source_id": act.get("action_id"), "due_at": due_dt.isoformat()}],
                                 detected_at=now,
                                 status=RiskStatus.OPEN.value,
                             )
@@ -86,95 +177,82 @@ class RiskAndGapAnalyzer:
                 except Exception:
                     pass
 
-            # Check for unassigned tasks (Knowledge / Responsibility Gap)
-            if status in ["TODO", "IN_PROGRESS"] and not assignee:
-                gaps.append(
-                    KnowledgeGap(
-                        id=str(ObjectId()),
-                        gap_id=f"gap_unassigned_{act.get('action_id')}",
-                        project_id=project_id,
-                        area="Task Ownership",
-                        description=f"Action item '{title}' has no designated owner.",
-                        suggested_action="Assign a team member to ensure accountability.",
-                        detected_at=now,
-                    )
-                )
+        # Deduplicate risks and gaps by ID
+        unique_risks: list[ProjectRisk] = []
+        seen_risk_ids: set[str] = set()
+        for r in risks:
+            if r.risk_id not in seen_risk_ids:
+                seen_risk_ids.add(r.risk_id)
+                unique_risks.append(r)
+        risks = unique_risks
 
-        # 2. Analyze Meeting Summaries for Unresolved Questions
-        cursor_m = db["meeting_summaries"].find({"project_id": project_id}).sort("generated_at", -1).limit(5)
-        summaries = await cursor_m.to_list(length=5)
-        for s in summaries:
-            unresolved = s.get("unresolved_questions", [])
-            for q in unresolved:
-                if len(q.strip()) > 10:
-                    risks.append(
-                        ProjectRisk(
-                            id=str(ObjectId()),
-                            risk_id=f"risk_unresolved_{s.get('meeting_id')}_{hash(q) % 10000}",
-                            project_id=project_id,
-                            title=f"Unresolved Meeting Topic: {q[:80]}",
-                            impact_explanation="Open architectural or technical question deferred during team meeting.",
-                            severity=RiskSeverity.LOW.value,
-                            evidence=[
-                                {
-                                    "source_type": "meeting_summary",
-                                    "source_id": s.get("meeting_id"),
-                                    "question": q,
-                                }
-                            ],
-                            detected_at=now,
-                            status=RiskStatus.OPEN.value,
-                        )
-                    )
+        unique_gaps: list[KnowledgeGap] = []
+        seen_gap_ids: set[str] = set()
+        for g in gaps:
+            if g.gap_id not in seen_gap_ids:
+                seen_gap_ids.add(g.gap_id)
+                unique_gaps.append(g)
+        gaps = unique_gaps
 
-        # 3. Check for Architecture Knowledge Gaps
-        cursor_dec = db["decisions"].find({"project_id": project_id})
-        dec_count = await db["decisions"].count_documents({"project_id": project_id})
-        if dec_count == 0:
-            gaps.append(
-                KnowledgeGap(
-                    id=str(ObjectId()),
-                    gap_id=f"gap_no_decisions_{project_id}",
-                    project_id=project_id,
-                    area="Architecture Decisions",
-                    description="No architectural or technical decisions have been logged for this project.",
-                    suggested_action="Document key framework, database, and infrastructure choices in the Decision Log.",
-                    detected_at=now,
-                )
-            )
-
-        # Upsert risks and gaps without modifying immutable _id
+        # Clear old and upsert fresh records
+        await db[self.RISKS_COLLECTION].delete_many({"project_id": project_id})
         for r in risks:
             r_data = r.model_dump(by_alias=True)
             r_data.pop("_id", None)
-            await db[self.RISKS_COLLECTION].update_one(
-                {"risk_id": r.risk_id, "project_id": project_id},
-                {"$set": r_data},
-                upsert=True,
-            )
+            await db[self.RISKS_COLLECTION].insert_one(r_data)
+
+        await db[self.GAPS_COLLECTION].delete_many({"project_id": project_id})
         for g in gaps:
             g_data = g.model_dump(by_alias=True)
             g_data.pop("_id", None)
-            await db[self.GAPS_COLLECTION].update_one(
-                {"gap_id": g.gap_id, "project_id": project_id},
-                {"$set": g_data},
-                upsert=True,
-            )
+            await db[self.GAPS_COLLECTION].insert_one(g_data)
 
-        cursor_r_all = db[self.RISKS_COLLECTION].find({"project_id": project_id}).sort("detected_at", -1)
-        r_docs = await cursor_r_all.to_list(length=50)
+        cursor_r = db[self.RISKS_COLLECTION].find({"project_id": project_id}).sort("detected_at", -1)
+        r_docs = await cursor_r.to_list(length=50)
 
-        cursor_g_all = db[self.GAPS_COLLECTION].find({"project_id": project_id}).sort("detected_at", -1)
-        g_docs = await cursor_g_all.to_list(length=50)
+        cursor_g = db[self.GAPS_COLLECTION].find({"project_id": project_id}).sort("detected_at", -1)
+        g_docs = await cursor_g.to_list(length=50)
 
-        return [ProjectRisk(**d) for d in r_docs], [KnowledgeGap(**d) for d in g_docs]
+
+        parsed_risks: list[ProjectRisk] = []
+        for d in r_docs:
+            try:
+                if "_id" in d:
+                    d["_id"] = str(d["_id"])
+                if "id" not in d:
+                    d["id"] = d.get("_id", str(ObjectId()))
+                ts = d.get("detected_at")
+                if isinstance(ts, str):
+                    d["detected_at"] = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+                parsed_risks.append(ProjectRisk(**d))
+            except Exception:
+                pass
+
+        parsed_gaps: list[KnowledgeGap] = []
+        for d in g_docs:
+            try:
+                if "_id" in d:
+                    d["_id"] = str(d["_id"])
+                if "id" not in d:
+                    d["id"] = d.get("_id", str(ObjectId()))
+                ts = d.get("detected_at")
+                if isinstance(ts, str):
+                    d["detected_at"] = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+                parsed_gaps.append(KnowledgeGap(**d))
+            except Exception:
+                pass
+
+        return (
+            parsed_risks if parsed_risks else risks,
+            parsed_gaps if parsed_gaps else gaps,
+        )
 
     async def update_risk_status(
         self, project_id: str, risk_id: str, new_status: str, db: AsyncIOMotorDatabase
     ) -> bool:
-        """Update status of a risk (OPEN, ACKNOWLEDGED, RESOLVED)."""
+        """Update the status of an existing risk."""
         res = await db[self.RISKS_COLLECTION].update_one(
-            {"risk_id": risk_id, "project_id": project_id},
-            {"$set": {"status": new_status.upper()}},
+            {"project_id": project_id, "risk_id": risk_id},
+            {"$set": {"status": new_status, "updated_at": datetime.now(timezone.utc)}},
         )
         return res.modified_count > 0

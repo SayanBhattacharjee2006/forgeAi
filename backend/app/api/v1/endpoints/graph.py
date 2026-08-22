@@ -1,7 +1,10 @@
 from fastapi import APIRouter, Depends
+from motor.motor_asyncio import AsyncIOMotorDatabase
 
+from app.core.database import get_db
 from app.api.v1.permissions import ProjectContext, require_project_member
 from app.models.decision import DecisionModel
+from app.services.architecture_service import build_project_architecture_graph
 
 router = APIRouter()
 
@@ -14,7 +17,8 @@ async def get_project_graph(
     """Build a lightweight nodes/edges graph from existing decisions data.
     No new ingestion — pure aggregation over the decisions collection.
     """
-    cursor = ctx.db["decisions"].find({"project_id": project_id})
+    target_pid = ctx.project.project_id or project_id
+    cursor = ctx.db["decisions"].find({"project_id": target_pid})
     decisions = [DecisionModel(**doc) async for doc in cursor]
 
     nodes: list[dict] = []
@@ -67,3 +71,17 @@ async def get_project_graph(
             })
 
     return {"nodes": nodes, "edges": edges}
+
+
+@router.get("/{project_id}/architecture")
+async def get_project_architecture(
+    project_id: str,
+    ctx: ProjectContext = Depends(require_project_member),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+):
+    """Dynamically generates the 4-Tier software architecture topology of the specified project.
+    Synthesizes the Project Constitution, decisions, database rules, and service boundaries.
+    """
+    target_pid = ctx.project.project_id or project_id
+    return await build_project_architecture_graph(target_pid, db)
+

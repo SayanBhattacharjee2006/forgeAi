@@ -125,6 +125,8 @@ class SparseRetriever:
         source_types: Optional[list[str]] = None,
     ) -> list[MemoryItem]:
         """Fetch project-scoped points from Qdrant for sparse indexing."""
+        if not collection_name:
+            return []
         try:
             qdrant = get_qdrant()
             from qdrant_client.models import Filter, FieldCondition, MatchValue
@@ -143,13 +145,22 @@ class SparseRetriever:
             )
 
             # Scroll up to 100 recent points
-            res, _ = await qdrant.scroll(
-                collection_name=collection_name,
-                scroll_filter=q_filter,
-                limit=100,
-                with_payload=True,
-                with_vectors=False,
-            )
+            try:
+                res, _ = await qdrant.scroll(
+                    collection_name=collection_name,
+                    scroll_filter=q_filter,
+                    limit=100,
+                    with_payload=True,
+                    with_vectors=False,
+                )
+            except Exception:
+                # If payload index is not present, scroll directly and filter in Python
+                res, _ = await qdrant.scroll(
+                    collection_name=collection_name,
+                    limit=100,
+                    with_payload=True,
+                    with_vectors=False,
+                )
 
             items = []
             for hit in res:
@@ -169,6 +180,5 @@ class SparseRetriever:
                     )
                 )
             return items
-        except Exception as err:
-            print(f"[SparseRetriever] Scroll fetch warning: {err}")
+        except Exception:
             return []

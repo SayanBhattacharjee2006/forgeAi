@@ -96,6 +96,7 @@ async def request_join(
 
 
 @router.get("/join/pending", response_model=list[ProjectResponse])
+@router.get("/join/pending/", response_model=list[ProjectResponse])
 async def get_my_pending_projects(
     current_user: UserModel = Depends(get_current_user),
     db: AsyncIOMotorDatabase = Depends(get_db),
@@ -106,6 +107,21 @@ async def get_my_pending_projects(
 
 
 # ==================== Global Activity ====================
+
+def format_utc_timestamp(val) -> str:
+    if val is None:
+        return datetime.now(timezone.utc).isoformat()
+    if isinstance(val, datetime):
+        if val.tzinfo is None:
+            val = val.replace(tzinfo=timezone.utc)
+        return val.isoformat()
+    s = str(val).strip()
+    if not s:
+        return datetime.now(timezone.utc).isoformat()
+    if not s.endswith("Z") and not ("+" in s[-6:] or ("-" in s[-6:] and "T" in s)):
+        return s + "Z"
+    return s
+
 
 @router.get("/activity/all", response_model=list[ActivityItem])
 async def get_all_recent_activity(
@@ -141,7 +157,7 @@ async def get_all_recent_activity(
             "description": dec.get("reasoning", "")[:150],
             "author": ", ".join(dec.get("participants", [])) or "Forge AI",
             "source": f"{pname} • Decision",
-            "timestamp": dec.get("timestamp") or dec.get("extracted_at") or datetime.now(timezone.utc).isoformat(),
+            "timestamp": format_utc_timestamp(dec.get("timestamp") or dec.get("extracted_at")),
             "url": dec.get("source_url", f"/project/{pid}/decisions"),
         })
 
@@ -157,7 +173,7 @@ async def get_all_recent_activity(
             "description": msg.get("content", "")[:150],
             "author": msg.get("user_name", "Team Member"),
             "source": f"{pname} • Team Chat",
-            "timestamp": msg.get("created_at", datetime.now(timezone.utc)).isoformat() if isinstance(msg.get("created_at"), datetime) else str(msg.get("created_at")),
+            "timestamp": format_utc_timestamp(msg.get("created_at")),
             "url": f"/project/{pid}/group-chat",
         })
 
@@ -174,7 +190,7 @@ async def get_all_recent_activity(
                 "description": f"{ingestion.get('github_chunks_count', 0)} chunks vectorized",
                 "author": "GitHub Integration",
                 "source": f"{pname} • GitHub Sync",
-                "timestamp": ingestion.get("last_github_sync") or p.get("updated_at", datetime.now(timezone.utc)).isoformat(),
+                "timestamp": format_utc_timestamp(ingestion.get("last_github_sync") or p.get("updated_at")),
                 "url": p.get("github_repo_url", ""),
             })
 
@@ -185,7 +201,7 @@ async def get_all_recent_activity(
             "description": p.get("description") or "Workspace active",
             "author": "Project Owner",
             "source": f"{pname} • Workspace",
-            "timestamp": p.get("created_at", datetime.now(timezone.utc)).isoformat() if isinstance(p.get("created_at"), datetime) else str(p.get("created_at")),
+            "timestamp": format_utc_timestamp(p.get("created_at")),
             "url": f"/project/{pid}",
         })
 
@@ -203,14 +219,7 @@ async def get_all_recent_activity(
 
     activities.sort(key=parse_time, reverse=True)
     for item in activities:
-        ts = item.get("timestamp")
-        if isinstance(ts, datetime):
-            item["timestamp"] = ts.isoformat()
-        elif ts is None:
-            item["timestamp"] = datetime.now(timezone.utc).isoformat()
-        else:
-            item["timestamp"] = str(ts)
-
+        item["timestamp"] = format_utc_timestamp(item.get("timestamp"))
     return [ActivityItem(**item) for item in activities[:25]]
 
 
@@ -448,7 +457,7 @@ async def get_project_activity(
             "description": dec.get("reasoning", "")[:180],
             "author": ", ".join(dec.get("participants", [])) or "Forge AI",
             "source": f"Decision Engine ({dec.get('source_type', 'AI')})",
-            "timestamp": dec.get("timestamp") or dec.get("extracted_at") or datetime.now(timezone.utc).isoformat(),
+            "timestamp": format_utc_timestamp(dec.get("timestamp") or dec.get("extracted_at")),
             "url": dec.get("source_url", f"/project/{project_id}/decisions"),
         })
 
@@ -462,7 +471,7 @@ async def get_project_activity(
             "description": msg.get("content", "")[:180],
             "author": msg.get("user_name", "Team Member"),
             "source": "Team Group Chat",
-            "timestamp": msg.get("created_at", datetime.now(timezone.utc)).isoformat() if isinstance(msg.get("created_at"), datetime) else str(msg.get("created_at")),
+            "timestamp": format_utc_timestamp(msg.get("created_at")),
             "url": f"/project/{project_id}/group-chat",
         })
 
@@ -489,7 +498,7 @@ async def get_project_activity(
                 "description": p.get("text", "")[:180],
                 "author": p.get("author", "Discord Member"),
                 "source": f"Discord #{p.get('channel', 'general')}",
-                "timestamp": p.get("timestamp", datetime.now(timezone.utc).isoformat()),
+                "timestamp": format_utc_timestamp(p.get("timestamp")),
                 "url": "",
             })
     except Exception:
@@ -505,8 +514,8 @@ async def get_project_activity(
             "description": f"{ingestion.github_chunks_count} chunks vectorized and available for AI search",
             "author": "GitHub Integration",
             "source": "GitHub Sync",
-            "timestamp": ingestion.last_github_sync or doc.updated_at.isoformat(),
-            "url": doc.github_repo_url,
+            "timestamp": format_utc_timestamp(getattr(ingestion, "last_github_sync", None) or getattr(doc, "updated_at", None)),
+            "url": doc.github_repo_url or "",
         })
 
     # 5. Project Workspace Creation
@@ -517,7 +526,7 @@ async def get_project_activity(
         "description": doc.description or "Project workspace initialized",
         "author": "Project Owner",
         "source": "Forge Workspace",
-        "timestamp": doc.created_at.isoformat() if isinstance(doc.created_at, datetime) else str(doc.created_at),
+        "timestamp": format_utc_timestamp(getattr(doc, "created_at", None)),
         "url": "",
     })
 
@@ -535,14 +544,7 @@ async def get_project_activity(
 
     activities.sort(key=parse_time, reverse=True)
     for item in activities:
-        ts = item.get("timestamp")
-        if isinstance(ts, datetime):
-            item["timestamp"] = ts.isoformat()
-        elif ts is None:
-            item["timestamp"] = datetime.now(timezone.utc).isoformat()
-        else:
-            item["timestamp"] = str(ts)
-
+        item["timestamp"] = format_utc_timestamp(item.get("timestamp"))
     return [ActivityItem(**item) for item in activities[:20]]
 
 

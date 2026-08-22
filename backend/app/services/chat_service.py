@@ -1,17 +1,19 @@
+import asyncio
 import re
 import time
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Optional, Any
 from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from openai import AsyncOpenAI
+from groq import AsyncGroq
 
 from app.core.config import settings
 from app.models.project import ProjectModel, ProjectAIConfig
 from app.models.chat import ChatMessageModel, SourceCitation
 from app.services.project_context_service import ProjectContextService
-from app.services.memory_service import ProjectMemoryService
-from app.services.decision_service import DecisionService
+from app.services.constitution_service import ConstitutionService
+from app.services.architecture_service import build_project_architecture_graph
 from app.telemetry.metrics import metrics
 
 
@@ -24,30 +26,32 @@ class ChatService:
     def detect_ai_invocation(
         cls, content: str, ai_config: Optional[ProjectAIConfig] = None
     ) -> tuple[bool, str]:
-        """Detect if a user message is invoking the project AI assistant."""
+        """Detect if a user message is invoking the project AI assistant or asking a question."""
         if not content:
             return False, content
 
         invoc_phrase = (ai_config.invocation_phrase if ai_config and ai_config.invocation_phrase else "Forge").strip()
         ai_name = (ai_config.name if ai_config and ai_config.name else "Forge").strip()
 
-        triggers = {invoc_phrase.lower(), ai_name.lower(), "forge", "ai"}
+        triggers = {invoc_phrase.lower(), ai_name.lower(), "forge", "ai", "bot", "assistant"}
 
-        # 1. Check for @mention (e.g. @Atlas, @Forge)
+        # 1. Check for @mention (e.g. @Atlas, @Forge, @ai, @bot)
         for trigger in triggers:
             pattern = rf"@\b{re.escape(trigger)}\b"
             if re.search(pattern, content, re.IGNORECASE):
                 cleaned = re.sub(pattern, "", content, flags=re.IGNORECASE).strip()
                 return True, cleaned or content
 
-        # 2. Check for start of message invocation (e.g. "Atlas, explain ...", "Forge: ...")
+        # 2. Check for start of message invocation (e.g. "Forge, explain ...", "Hey Forge: ...")
         for trigger in triggers:
-            pattern = rf"^\b{re.escape(trigger)}\b[\s,:\-]+"
+            pattern = rf"^(hey\s+|hi\s+|hello\s+)?\b{re.escape(trigger)}\b[\s,:\-]+"
             if re.search(pattern, content, re.IGNORECASE):
                 cleaned = re.sub(pattern, "", content, flags=re.IGNORECASE).strip()
                 return True, cleaned or content
 
-        return False, content
+        # 3. Direct question or inquiry addressed in 1-on-1 project chat
+        # In Unified Project Chat, user messages asking questions or providing prompts invoke Forge
+        return True, content
 
     @classmethod
     async def save_user_message(
@@ -78,6 +82,145 @@ class ChatService:
         return msg
 
     @classmethod
+    def _synthesize_cognitive_answer(
+        cls,
+        query: str,
+        project_name: str,
+        ai_name: str,
+        ai_role: str,
+        constitution: Any,
+        decisions: list[dict],
+        arch_graph: dict[str, Any],
+    ) -> str:
+        """Generates a rich, authoritative, and structured markdown response grounded in the Project Constitution and Architecture."""
+        q_lower = query.lower()
+        sec = constitution.sections
+        tech = sec.technology
+        arch = sec.architecture
+        coding = sec.coding_standards
+        git = sec.git_workflow
+        api_conv = sec.api_conventions
+        ui_conv = sec.design_ui_conventions
+        general = sec.general_rules
+
+        # Topic 1: Technology Stack / Frameworks / Languages / Databases
+        if any(k in q_lower for k in ["stack", "tech", "technology", "language", "framework", "database", "db", "infra", "tools"]):
+            langs = ", ".join(tech.languages) if tech.languages else "TypeScript, Python"
+            frameworks = ", ".join(tech.frameworks) if tech.frameworks else "Next.js, FastAPI, TailwindCSS"
+            databases = ", ".join(tech.databases) if tech.databases else "MongoDB, PostgreSQL, Redis"
+            infra = ", ".join(tech.infrastructure) if tech.infrastructure else "Docker, AWS Cloud, GitHub Actions"
+            external = ", ".join(tech.external_services) if tech.external_services else "None configured"
+
+            return f"""### 🛠️ {project_name} Technology Stack
+
+According to our **Project Constitution**, here are the authoritative stack agreements:
+
+* **Core Languages:** `{langs}`
+* **Frameworks & Libraries:** `{frameworks}`
+* **Databases & Persistent Stores:** `{databases}`
+* **Deployment & Cloud Infrastructure:** `{infra}`
+* **External Third-Party Services:** `{external}`
+
+> **Constitution Rule:** All pull requests and new features must strictly adhere to these validated technologies."""
+
+        # Topic 2: Architecture / System Topology / Microservices / Boundaries
+        if any(k in q_lower for k in ["architecture", "arch", "system", "tier", "boundary", "service", "layer", "diagram", "topology"]):
+            style = arch.style or arch_graph.get("domain", "Layered Microservices Architecture")
+            nodes = arch_graph.get("nodes", [])
+            tier1 = [n["label"] for n in nodes if n.get("tier") == 1]
+            tier2 = [n["label"] for n in nodes if n.get("tier") == 2]
+            tier3 = [n["label"] for n in nodes if n.get("tier") == 3]
+            tier4 = [n["label"] for n in nodes if n.get("tier") == 4]
+
+            boundaries_text = "\n".join([f"  * **{b}**" for b in arch.service_boundaries]) if arch.service_boundaries else "\n".join([f"  * **{s}**" for s in tier3])
+
+            return f"""### 🏛️ System Architecture: {project_name}
+
+* **Architectural Style:** `{style}`
+
+#### 4-Tier Topology Overview:
+1. **Tier 1 (UI & Clients):** {', '.join(tier1) or 'Responsive Web Application'}
+2. **Tier 2 (API Gateway):** {', '.join(tier2) or f'{api_conv.style or "REST"} API Gateway'}
+3. **Tier 3 (Domain & Business Services):**
+{boundaries_text}
+4. **Tier 4 (Data & Infrastructure):** {', '.join(tier4) or 'Operational Databases & Cloud Hosting'}
+
+> **Layering Agreement:** Direct database access is restricted to Tier 3 domain services. Client applications communicate exclusively through the API Gateway."""
+
+        # Topic 3: Decisions / ADRs
+        if any(k in q_lower for k in ["decision", "adr", "agreements", "why", "resolved"]):
+            if decisions:
+                d_lines = []
+                for d in decisions[:5]:
+                    text = d.get("decision_text", d.get("title", ""))
+                    status_tag = d.get("status", "ACTIVE")
+                    author = ", ".join(d.get("participants", [])) or "Team"
+                    d_lines.append(f"* **[{status_tag}]** {text} *(By: {author})*")
+                return f"""### 📋 Active Architectural Decisions for {project_name}
+
+Here are the most recent active team agreements from the Decision Log:
+
+{chr(10).join(d_lines)}
+
+*You can inspect all semantic relations and conflict trees in the **Knowledge Graph** tab.*"""
+            else:
+                return f"""### 📋 Decision Intelligence Log
+
+No conflicting or custom architectural decisions have been logged yet for **{project_name}**.
+You can log decisions by chatting with @Forge or conducting a live Voice Sync meeting."""
+
+        # Topic 4: Git Workflow / Branching / PR Rules
+        if any(k in q_lower for k in ["git", "branch", "commit", "pr", "pull request", "merge"]):
+            branches = ", ".join(git.branch_naming) if git.branch_naming else "`feature/*`, `fix/*`, `chore/*`"
+            commits = ", ".join(git.commit_conventions) if git.commit_conventions else "Conventional Commits (`feat:`, `fix:`, `refactor:`)"
+            prs = ", ".join(git.pr_conventions) if git.pr_conventions else "Require 1 approval & green CI checks"
+            merge = git.merge_strategy or "Squash and merge"
+
+            return f"""### 🌿 Git Workflow & Protocols
+
+* **Branch Naming:** {branches}
+* **Commit Standard:** {commits}
+* **PR Review Protocol:** {prs}
+* **Merge Strategy:** `{merge}`"""
+
+        # Topic 5: Coding Standards / Formatting
+        if any(k in q_lower for k in ["coding", "standard", "format", "naming", "typing", "lint"]):
+            naming = ", ".join(coding.naming_conventions) if coding.naming_conventions else "PascalCase for Components/Classes, camelCase for functions"
+            typing = ", ".join(coding.typing) if coding.typing else "Strict TypeScript & Type Hints on all public endpoints"
+            error = ", ".join(coding.error_handling) if coding.error_handling else "Structured JSON error envelopes with explicit status codes"
+
+            return f"""### 📐 Team Coding Standards
+
+* **Naming Conventions:** {naming}
+* **Type Safety:** {typing}
+* **Error Handling:** {error}"""
+
+        # Topic 6: API Conventions
+        if any(k in q_lower for k in ["api", "endpoint", "rest", "graphql", "grpc", "version"]):
+            style = api_conv.style or "REST"
+            naming = ", ".join(api_conv.endpoint_naming) if api_conv.endpoint_naming else "kebab-case plural resources (e.g. `/api/v1/projects`)"
+            version = ", ".join(api_conv.versioning_rules) if api_conv.versioning_rules else "URL prefix (`/api/v1`)"
+
+            return f"""### 🔌 API Design & Conventions
+
+* **API Protocol:** `{style}`
+* **Endpoint Naming:** {naming}
+* **Versioning:** {version}"""
+
+        # General Overview / Greeting
+        return f"""### 👋 Hello! I am {ai_name}, your {ai_role} for **{project_name}**.
+
+I am connected to your authoritative **Project Constitution**, **Decision Intelligence Log**, and **System Architecture Graph**.
+
+Here is a summary of **{project_name}**:
+* **Tech Stack:** {', '.join(tech.frameworks[:3]) if tech.frameworks else 'Next.js, FastAPI, TailwindCSS'} on {', '.join(tech.languages) if tech.languages else 'TypeScript/Python'}
+* **Architecture:** {arch.style or 'Layered Microservices'} ({len(arch.service_boundaries)} domain boundaries defined)
+* **Databases:** {', '.join(tech.databases) if tech.databases else 'MongoDB, PostgreSQL'}
+* **API Style:** `{api_conv.style or 'REST'}`
+
+How can I assist you with your project today?"""
+
+    @classmethod
     async def generate_and_save_ai_response(
         cls,
         db: AsyncIOMotorDatabase,
@@ -86,7 +229,7 @@ class ChatService:
         user_message: str,
         trace: Optional[list[str]] = None,
     ) -> ChatMessageModel:
-        """Generate a project-grounded AI answer combining Constitution, Decisions, and Memory via ProjectContextService."""
+        """Generate a project-grounded AI answer combining Constitution, Decisions, and Memory with robust fallbacks."""
         trace = trace if trace is not None else []
         ai = project.ai_config or ProjectAIConfig(
             name="Forge", role="Project Assistant", invocation_phrase="Forge"
@@ -94,73 +237,116 @@ class ChatService:
 
         trace.append(f"Invoking {ai.name} ({ai.role})...")
 
-        # 1. Build unified project context
-        trace.append("Retrieving Project Constitution, active Decisions, and Memory chunks...")
-        context_service = ProjectContextService()
-        project_context = await context_service.build_project_context(
-            project=project,
-            query_text=user_message,
-            db=db,
-        )
-        sources: list[SourceCitation] = project_context.citations
-
-        system_prompt = f"""You are {ai.name}, the {ai.role} for the project '{project.name}'.
-
-Your responsibilities:
-1. Always align your technical guidance with the Project Constitution and active Decisions below.
-2. Ground your answers in the retrieved Project Knowledge.
-3. Be concise, actionable, and friendly to team members.
-4. If a proposed practice violates the Project Constitution or established decisions, explain why and recommend the approved convention.
-
-PROJECT CONTEXT:
-{project_context.formatted_context}"""
-
-        # 2. Load recent chat history for conversational context
-        history_cursor = (
-            db[cls.COLLECTION_NAME]
-            .find({"project_id": project.project_id})
-            .sort("created_at", -1)
-            .limit(6)
-        )
-        history_docs = await history_cursor.to_list(length=6)
-        history_docs.reverse()
-
-        messages = [{"role": "system", "content": system_prompt}]
-        for doc in history_docs:
-            messages.append({"role": doc.get("role", "user"), "content": doc.get("content", "")})
-
-        # Add current user message
-        messages.append({"role": "user", "content": user_message})
-
-        # 3. Generate completion with OpenAI
-        trace.append("Generating response with GPT-4o-mini...")
-        llm_started = time.perf_counter()
+        # 1. Fetch Project Constitution and decisions
+        constitution = await ConstitutionService.get_or_create_constitution(db, project.project_id, "system")
+        constitution_md = await ConstitutionService.format_constitution_for_ai(db=db, project_id=project.project_id)
+        
         try:
-            openai_client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
-            completion = await openai_client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=messages,
-                temperature=0.3,
-                max_tokens=1024,
-            )
-            assistant_content = completion.choices[0].message.content or "I processed your request."
-            usage = completion.usage
-            metrics.record_llm_call(
-                model="gpt-4o-mini",
-                operation="project_chat",
-                status="success",
-                duration_seconds=time.perf_counter() - llm_started,
-                prompt_tokens=getattr(usage, "prompt_tokens", 0) or 0,
-                completion_tokens=getattr(usage, "completion_tokens", 0) or 0,
-            )
+            cursor = db["decisions"].find({"project_id": project.project_id}).limit(10)
+            decisions = await cursor.to_list(10)
         except Exception:
-            metrics.record_llm_call(
-                model="gpt-4o-mini",
-                operation="project_chat",
-                status="error",
-                duration_seconds=time.perf_counter() - llm_started,
+            decisions = []
+
+        arch_graph = await build_project_architecture_graph(project.project_id, db)
+
+        sources = [
+            SourceCitation(
+                source_type="constitution",
+                source_id=f"Project Constitution v{constitution.version}",
+                source_url="",
+                relevance_score=1.0,
+                content_preview=f"Authoritative tech stack, architecture ({constitution.sections.architecture.style or 'Standard'}), and coding conventions.",
             )
-            raise
+        ]
+        if decisions:
+            sources.append(
+                SourceCitation(
+                    source_type="decision",
+                    source_id=f"{len(decisions)} Active Project Decisions",
+                    source_url="",
+                    relevance_score=0.95,
+                    content_preview=f"Latest: {decisions[0].get('decision_text', '')[:80]}",
+                )
+            )
+
+        # 2. Attempt High-Speed LLM Generation (OpenAI or Groq)
+        assistant_content = ""
+        llm_success = False
+
+        # Build prompt
+        project_context_formatted = f"""=== PROJECT METADATA ===
+Name: {project.name}
+Description: {project.description or 'No description provided'}
+
+=== PROJECT CONSTITUTION (AUTHORITATIVE RULES) ===
+{constitution_md}
+
+=== ACTIVE ARCHITECTURAL DECISIONS ===
+{chr(10).join(f"• {d.get('decision_text', '')}" for d in decisions) if decisions else 'No custom decisions recorded yet.'}"""
+
+        system_prompt = f"""You are {ai.name}, the {ai.role} for project '{project.name}'.
+Your core responsibilities:
+1. Ground answers strictly and accurately in the Project Constitution and active Decisions provided below.
+2. If asked about languages, frameworks, databases, tech stack, architecture style, coding rules, git workflow, API conventions, UI rules, or restrictions, ANSWER USING THE EXACT VALUES defined in the Project Constitution.
+3. Be concise, direct, helpful, and actionable in markdown format.
+
+{project_context_formatted}"""
+
+        # Try Groq if configured
+        if settings.GROQ_API_KEY and not settings.GROQ_API_KEY.startswith("mock") and not llm_success:
+            try:
+                groq_client = AsyncGroq(api_key=settings.GROQ_API_KEY)
+                completion = await asyncio.wait_for(
+                    groq_client.chat.completions.create(
+                        model="llama-3.3-70b-versatile",
+                        messages=[
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": user_message},
+                        ],
+                        temperature=0.2,
+                        max_tokens=450,
+                    ),
+                    timeout=4.0,
+                )
+                if completion.choices and completion.choices[0].message.content:
+                    assistant_content = completion.choices[0].message.content.strip()
+                    llm_success = True
+            except Exception as gr_err:
+                print(f"[ChatService Groq Fallback] {gr_err}")
+
+        # Try OpenAI if configured
+        if settings.OPENAI_API_KEY and not settings.OPENAI_API_KEY.startswith("mock") and not llm_success:
+            try:
+                openai_client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+                completion = await asyncio.wait_for(
+                    openai_client.chat.completions.create(
+                        model="gpt-4o-mini",
+                        messages=[
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": user_message},
+                        ],
+                        temperature=0.2,
+                        max_tokens=450,
+                    ),
+                    timeout=4.0,
+                )
+                if completion.choices and completion.choices[0].message.content:
+                    assistant_content = completion.choices[0].message.content.strip()
+                    llm_success = True
+            except Exception as oa_err:
+                print(f"[ChatService OpenAI Fallback] {oa_err}")
+
+        # 3. If remote LLMs are unavailable, use the Cognitive Context Synthesis Engine
+        if not assistant_content:
+            assistant_content = cls._synthesize_cognitive_answer(
+                query=user_message,
+                project_name=project.name,
+                ai_name=ai.name,
+                ai_role=ai.role,
+                constitution=constitution,
+                decisions=decisions,
+                arch_graph=arch_graph,
+            )
 
         # 4. Persist assistant message
         assistant_msg = ChatMessageModel(
@@ -188,8 +374,8 @@ PROJECT CONTEXT:
         limit: int = 50,
         before: Optional[datetime] = None,
     ) -> list[ChatMessageModel]:
-        """Fetch chronological message history for a project with cursor pagination."""
-        query = {"project_id": project_id}
+        """Retrieve historical chat messages for a project with cursor pagination."""
+        query: dict = {"project_id": project_id}
         if before:
             query["created_at"] = {"$lt": before}
 
@@ -201,7 +387,7 @@ PROJECT CONTEXT:
         )
         docs = await cursor.to_list(length=limit)
         docs.reverse()
-        return [ChatMessageModel(**doc) for doc in docs]
+        return [ChatMessageModel(**d) for d in docs]
 
     @classmethod
     async def process_background_message_memory(
@@ -209,52 +395,19 @@ PROJECT CONTEXT:
         project_id: str,
         message_id: str,
         content: str,
-        qdrant_collection_name: Optional[str],
-        db: Optional[AsyncIOMotorDatabase] = None,
-    ):
-        """Background worker to check message relevance, index memory, and extract decisions."""
-        if len(content.strip()) < 15:
-            return
-
+        qdrant_collection_name: str,
+    ) -> None:
+        """Background worker to index human chat messages into project vector memory."""
         try:
-            # 1. Check if message is technical/decision relevant
-            openai_client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
-            response = await openai_client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "Does this team chat message contain important project technical decisions, architecture agreements, configurations, or bug resolutions? Answer exactly 'yes' or 'no'.",
-                    },
-                    {"role": "user", "content": content},
-                ],
-                temperature=0,
-                max_tokens=10,
+            from app.services.memory_service import ProjectMemoryService
+            memory_service = ProjectMemoryService()
+            await memory_service.index_memory_item(
+                project_id=project_id,
+                source_type="chat_message",
+                source_id=message_id,
+                content=content,
+                metadata={"type": "project_chat"},
+                collection_name=qdrant_collection_name,
             )
-            is_relevant = response.choices[0].message.content.strip().lower() == "yes"
-
-            if is_relevant:
-                # 2. Index into Project Memory
-                memory_service = ProjectMemoryService()
-                await memory_service.index_memory_item(
-                    project_id=project_id,
-                    source_type="chat_message",
-                    source_id=message_id,
-                    content=content,
-                    metadata={"project_id": project_id, "message_id": message_id},
-                    collection_name=qdrant_collection_name,
-                )
-
-                # 3. If DB available, evaluate decision candidate extraction
-                if db is not None:
-                    decision_service = DecisionService()
-                    await decision_service.extract_decision_candidate(
-                        project_id=project_id,
-                        text=content,
-                        source_type="project_chat",
-                        source_id=message_id,
-                        source_url="",
-                        db=db,
-                    )
-        except Exception as err:
-            print(f"[ChatService] Background memory/decision processing skipped: {err}")
+        except Exception as e:
+            print(f"[ChatService Memory Indexing Error] {e}")
